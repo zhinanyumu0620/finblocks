@@ -75,12 +75,14 @@ function startTour(){if($("welcome-dialog").open)$("welcome-dialog").close();tou
 function offerGuide(){let choice;try{choice=localStorage.getItem(onboardingKey());}catch{choice=null;}if(!choice&&!$("welcome-dialog").open)$("welcome-dialog").showModal();}
 
 function renderAccount(){
-  const user=state.bootstrap.user;$("account-status").textContent=user?"测试账号 · "+user.username:"游客";
+  const user=state.bootstrap.user;$("account-status").textContent=user?(state.bootstrap.online?"组员账号 · ":"测试账号 · ")+user.username:"游客";
   $("account-btn").textContent=user?"切换账号":"注册 / 登录";$("logout-btn").hidden=!user;
 }
 function openAccount(mode="login"){
   stopTour();authMode=mode;$("auth-title").textContent=mode==="register"?"注册测试账号":"登录测试账号";
   $("auth-confirm-field").hidden=mode!=="register";$("auth-confirm").required=mode==="register";
+  $("auth-invite-field").hidden=!(state.bootstrap.online&&mode==="register");$("auth-invite").required=state.bootstrap.online&&mode==="register";
+  if(state.bootstrap.online)$("auth-description").textContent="组员使用邀请码注册，只需用户名和密码，不绑定手机号或邮箱。账号与研究历史保存在服务端，金融数据与AI功能须登录后使用。";
   $("auth-password").autocomplete=mode==="register"?"new-password":"current-password";
   $("auth-submit").textContent=mode==="register"?"注册并登录":"登录";
   $("auth-switch").textContent=mode==="register"?"已有账号，去登录":"没有账号，去注册";
@@ -111,7 +113,9 @@ async function submitAccount(event){
   const password=$("auth-password").value;
   if(authMode==="register"&&password!==$("auth-confirm").value){$("auth-error").textContent="两次密码不一致，请重新确认。";return;}
   authBusy=true;$("auth-submit").disabled=true;$("auth-close").disabled=true;$("auth-switch").disabled=true;$("auth-error").textContent="";
-  try{const result=await api("/api/auth/"+authMode,{username:$("auth-username").value,password});
+  const headers=state.bootstrap.online&&authMode==="register"?{"X-FinBlocks-Invite":$("auth-invite").value.trim()}:{};
+  try{const result=await api("/api/auth/"+authMode,{username:$("auth-username").value,password},headers);
+    $("auth-invite").value="";
     $("auth-password").value="";$("auth-confirm").value="";$("auth-dialog").close();await changeIdentity(result.user);notice("已登录测试账号。策略快照与游客或其他账号分开保存。");
   }catch(error){$("auth-error").textContent=error.message;}
   finally{authBusy=false;$("auth-submit").disabled=false;$("auth-close").disabled=false;$("auth-switch").disabled=false;}

@@ -18,8 +18,8 @@ function notice(message, error=false) {
   $("notice").textContent = message; $("notice").className = "notice" + (error ? " error" : ""); $("notice").hidden = false;
 }
 
-async function api(path, body) {
-  const response = await fetch(path, body === undefined ? {} : {method:"POST",headers:{"Content-Type":"application/json","X-FinBlocks-Token":state.bootstrap.token},body:JSON.stringify(body)});
+async function api(path, body, extraHeaders={}) {
+  const response = await fetch(path, body === undefined ? {} : {method:"POST",headers:{"Content-Type":"application/json","X-FinBlocks-Token":state.bootstrap.token,...extraHeaders},body:JSON.stringify(body)});
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || "请求未完成");
   return result;

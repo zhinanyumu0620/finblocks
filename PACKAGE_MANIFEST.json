@@ -14,6 +14,11 @@
       "sha256": "850763a869e71e2b2150d21f2425e5409c5b2c205117830a6c8cd7b7e831728f"
     },
     {
+      "path": "data/data_upload_spec.json",
+      "bytes": 371,
+      "sha256": "66dc6fa659597bb9a83f9c6e05c254b025d2a946eb41b60d6084305938cdd91f"
+    },
+    {
       "path": "data/demo_manifest.json",
       "bytes": 3250,
       "sha256": "7d3e78ae0500b7c94cfa78eae8549093fe018dd3d5f2e1a8a2b6d10db42ab3cc"
@@ -85,8 +90,8 @@
     },
     {
       "path": "finblocks/auth.py",
-      "bytes": 6109,
-      "sha256": "18c2fbdebcee2c53672b00c79fbdbb7901dc63e52aefec46c81709f81baf7280"
+      "bytes": 6156,
+      "sha256": "f49cd2cd8a3e85270fab1d17ec58f908f56505c1b2343f2708672b1d69ba12ed"
     },
     {
       "path": "finblocks/backtest.py",
@@ -102,6 +107,11 @@
       "path": "finblocks/data.py",
       "bytes": 8332,
       "sha256": "9e47c43c2c54096aef1e097cdb608e68c51584fb5362cb0e61451b53e003dcc4"
+    },
+    {
+      "path": "finblocks/deployment.py",
+      "bytes": 4296,
+      "sha256": "6fd02bbce253d30daaee2f518d38b069848425a3f81100c2879b48f8f7a81ac6"
     },
     {
       "path": "finblocks/dsl.py",
@@ -135,18 +145,33 @@
     },
     {
       "path": "finblocks/web.py",
-      "bytes": 55091,
-      "sha256": "09a8c77ce02c244456d76951d6acfce6c12a4de5984c821286ad8ae6ec3c23be"
+      "bytes": 58162,
+      "sha256": "0c5ffd33a5fa1eadc6d2c2152c8393d75b1c4b1418043d8737d1063bd49b8f03"
+    },
+    {
+      "path": "ONLINE_README.md",
+      "bytes": 5041,
+      "sha256": "fc634084ee39654af868d27c14cdfc2353f74e2af324d8286b50ecf9996ac8a6"
     },
     {
       "path": "README.md",
-      "bytes": 828,
-      "sha256": "bab3cebaff45d573488cfc9cc31cbc2e1ee1707edc5fb6f95a45f833abfd112d"
+      "bytes": 1055,
+      "sha256": "05f6f48e482436eec188532410ef56b94d12fb958b50f676e0fac6fca9196767"
+    },
+    {
+      "path": "render.yaml",
+      "bytes": 696,
+      "sha256": "bd4b8d5e541bd17037f000e7b77642b7d1266010d9bbecd70b7ff3c1e8222136"
     },
     {
       "path": "run.ps1",
       "bytes": 536,
       "sha256": "e173c301fbace1480e4d87e5a2cc887056ecaff21b2120c0c6233beca1c8b1f5"
+    },
+    {
+      "path": "serve_online.py",
+      "bytes": 2501,
+      "sha256": "9328e18fb8e0a868f0c4db4e4d438551abbf0323abe1ad88f24883a0e0316492"
     },
     {
       "path": "start.cmd",
@@ -160,8 +185,8 @@
     },
     {
       "path": "TEAM_README.md",
-      "bytes": 4679,
-      "sha256": "cc738199fa4fbb04894f7af87308e625d8f50abe72f8948ac64ef38ccb7270b7"
+      "bytes": 4860,
+      "sha256": "e72b09f05e49534ecf5699aff5b946155da60052c1a86572fc3628f5cdf2f10a"
     },
     {
       "path": "tests/test_auth.py",
@@ -177,6 +202,11 @@
       "path": "tests/test_core.py",
       "bytes": 7472,
       "sha256": "5dd6e6a1f795859ea9e2c3eefc401f3efd80069fa60fcc10cc98c196ed2b9c91"
+    },
+    {
+      "path": "tests/test_deployment.py",
+      "bytes": 7096,
+      "sha256": "bf4e7e357a037a08a1ee0b919fc935212954b856b8b51995ba5f0a8bf7d3abd0"
     },
     {
       "path": "tests/test_distribution.py",
@@ -225,8 +255,13 @@
     },
     {
       "path": "tools/supplement_public_data.py",
-      "bytes": 4951,
-      "sha256": "2d24f93d6ef808db9fc5cb14053b7dcf5ce815dffcd15aab3f3475d12da8fcfd"
+      "bytes": 5114,
+      "sha256": "1f9c632ea782d8e02d4eaccb3c498b5cd9d6dbaf9e5c4354977efe6265c15b45"
+    },
+    {
+      "path": "tools/upload_team_data.py",
+      "bytes": 3391,
+      "sha256": "8897bbc7291a561d1c273ee7c1ef26e736d202a4728a93927302a8510bc4708a"
     },
     {
       "path": "tools/verify_shared_package.py",
@@ -235,18 +270,18 @@
     },
     {
       "path": "web/app.js",
-      "bytes": 44369,
-      "sha256": "5e3081597a1b3d00e5623fc03b57adc2444c4ba74890419701d82849a077c27b"
+      "bytes": 44402,
+      "sha256": "e1bd281d4804aa941e382a84afe3060c69091c6cac5c5a99317b7e974b6edd9b"
     },
     {
       "path": "web/experience.js",
-      "bytes": 17780,
-      "sha256": "f4d5af18202923d19b1099a5331d8ce66c3daba1f28938a43a969812600c5fcd"
+      "bytes": 18367,
+      "sha256": "7eedea86a7cdd8e1aa82dbc2f5fef287256cdedfd5e1f40a166da9406c23cecb"
     },
     {
       "path": "web/index.html",
-      "bytes": 27960,
-      "sha256": "2b6587013d77c777234b7da6b4a4b2269288ac9ffd893da814d3216137d0b085"
+      "bytes": 28146,
+      "sha256": "4ae4511bbbfe2206fcff233832b53b4997b1f0966911bd55689ed10b17faf2f7"
     },
     {
       "path": "web/portfolio.js",

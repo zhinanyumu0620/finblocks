@@ -75,8 +75,10 @@ def require_png(body):
 
 
 class Workspace:
-    def __init__(self, root):
+    def __init__(self, root, policy=None):
         self.root = Path(root)
+        self.policy = policy
+        self.uploads = None
         stats = json.loads((self.root / "docs/audit_evidence/data_statistics.json").read_text(encoding="utf-8"))
         self.archive = self.root / stats["archives"][0]["path"]
         self.manifest = json.loads((self.root / "data/demo_manifest.json").read_text(encoding="utf-8"))
@@ -123,6 +125,7 @@ class Workspace:
                 "stock_pool": {key: self.pool[key] for key in ("index_code", "name", "as_of", "official_url", "official_sha256", "summary", "limitations")},
                 "default_strategy": self.default_strategy, "ai_configured": bool(os.environ.get("DEEPSEEK_API_KEY", "").strip()),
                 "user": user,
+                "online": self.policy is not None,
                 "defaults": {"cost_bps": 10, "lag": 1, "periods_per_year": 252, "annual_risk_free_rate": 0.0}, "price_gap_tolerance": 0.0,
                 "fundamentals": json.loads((self.root / "data/fundamental_capabilities.json").read_text(encoding="utf-8")),
                 "data_sources": self.data_sources(),
@@ -637,7 +640,12 @@ def make_handler(workspace):
             self.respond(status, encode_json(value))
 
         def allowed_host(self):
+            if workspace.policy:
+                return self.headers.get("Host") == workspace.policy.host
             return self.headers.get("Host") in {f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}"}
+
+        def cookie(self, token=None):
+            return workspace.accounts.cookie_header(token, secure=workspace.policy is not None)
 
         def current_user(self):
             return workspace.accounts.current(self.headers.get("Cookie", ""))
@@ -664,6 +672,8 @@ def make_handler(workspace):
                 self.connection.settimeout(previous_timeout)
 
         def do_GET(self):
+            if self.path == "/health":
+                return self.json({"status": "ok"})
             if not self.allowed_host():
                 return self.json({"error": "仅允许本机访问"}, 403)
             static = {"/": ("index.html", "text/html; charset=utf-8"), "/app.js": ("app.js", "text/javascript; charset=utf-8"),
@@ -677,9 +687,11 @@ def make_handler(workspace):
             if self.path == "/api/bootstrap":
                 user = self.current_user()
                 stale = workspace.accounts.cookie_token(self.headers.get("Cookie", "")) and user is None
-                return self.respond(200, encode_json(workspace.bootstrap(user)), cookie=workspace.accounts.cookie_header() if stale else None)
+                return self.respond(200, encode_json(workspace.bootstrap(user)), cookie=self.cookie() if stale else None)
             if self.path == "/api/auth/session":
                 return self.json({"user": self.current_user()})
+            if workspace.policy and self.current_user() is None:
+                return self.json({"error": "请先登录组员账号"}, 401)
             exported = re.fullmatch(r"/api/file/([0-9a-f]{32})/(strategy.json|report.json|records.csv|equity.png|research.json)", self.path)
             if exported:
                 with workspace.lock:
@@ -704,15 +716,22 @@ def make_handler(workspace):
 
         def do_POST(self):
             origin = self.headers.get("Origin")
-            if not self.allowed_host() or (origin and origin != "http://" + self.headers.get("Host", "")):
+            expected_origin = workspace.policy.origin if workspace.policy else "http://" + self.headers.get("Host", "")
+            if not self.allowed_host() or (origin and origin != expected_origin):
                 self.discard_body()
                 return self.json({"error": "只接受本机工作台请求"}, 403)
             token = self.headers.get("X-FinBlocks-Token", "")
             if not token.isascii() or not secrets.compare_digest(token, workspace.token):
                 self.discard_body()
                 return self.json({"error": "会话校验失败，请刷新页面"}, 403)
+            if self.path in ("/api/admin/data-status", "/api/admin/upload-part"):
+                return self.upload_data()
             user = self.current_user()
             owner = user["id"] if user else None
+            if (workspace.policy and user is None
+                    and self.path not in ("/api/auth/register", "/api/auth/login", "/api/auth/logout", "/api/validate")):
+                self.discard_body()
+                return self.json({"error": "请先登录组员账号"}, 401)
             if (workspace.accounts.cookie_token(self.headers.get("Cookie", "")) and user is None
                     and self.path not in ("/api/auth/register", "/api/auth/login", "/api/auth/logout")):
                 self.discard_body()
@@ -730,17 +749,19 @@ def make_handler(workspace):
                     raise ValueError("请求必须为JSON对象")
                 if self.path in ("/api/auth/register", "/api/auth/login"):
                     if self.path.endswith("register"):
+                        if workspace.policy and not workspace.policy.matches(self.headers.get("X-FinBlocks-Invite"), workspace.policy.invite):
+                            raise AuthError("组员邀请码不正确", 403)
                         user, session = workspace.accounts.register(payload)
                     else:
                         user, session = workspace.accounts.login(payload, self.client_address[0])
                     # 登录切换时废弃当前会话，不延续旧身份。
                     workspace.accounts.logout(self.headers.get("Cookie", ""))
-                    return self.respond(200, encode_json({"user": user}), cookie=workspace.accounts.cookie_header(session))
+                    return self.respond(200, encode_json({"user": user}), cookie=self.cookie(session))
                 if self.path == "/api/auth/logout":
                     if payload:
                         raise ValueError("退出请求不接受额外字段")
                     workspace.accounts.logout(self.headers.get("Cookie", ""))
-                    return self.respond(200, encode_json({"user": None}), cookie=workspace.accounts.cookie_header())
+                    return self.respond(200, encode_json({"user": None}), cookie=self.cookie())
                 if self.path == "/api/validate":
                     return self.json(workspace.validate(payload.get("strategy")))
                 if self.path == "/api/generate":
@@ -814,6 +835,33 @@ def make_handler(workspace):
                 return self.json({"error": "本地资料无法读取或写入，请检查源文件和输出目录"}, 500)
             except Exception:
                 return self.json({"error": "执行出现异常，未生成成功结果"}, 500)
+
+        def upload_data(self):
+            if (not workspace.policy or workspace.uploads is None
+                    or not workspace.policy.matches(self.headers.get("X-FinBlocks-Admin"), workspace.policy.admin)):
+                self.discard_body()
+                return self.json({"error": "管理员上传校验失败"}, 403)
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if self.path == "/api/admin/data-status":
+                    if not 0 < length <= 1024:
+                        raise DataError("上传状态请求大小无效")
+                    payload = json.loads(self.rfile.read(length))
+                    if not isinstance(payload, dict) or set(payload) != {"kind"} or not isinstance(payload["kind"], str):
+                        raise DataError("上传状态仅接受资料类型")
+                    return self.json(workspace.uploads.status(payload["kind"]))
+                if self.headers.get("Content-Type") != "application/octet-stream" or not 0 < length <= workspace.uploads.chunk_limit:
+                    raise DataError("上传须为有界二进制分片")
+                kind = self.headers.get("X-FinBlocks-Data-Kind", "")
+                offset = int(self.headers.get("X-FinBlocks-Data-Offset", "-1"))
+                self.connection.settimeout(30)
+                body = self.rfile.read(length)
+                if len(body) != length:
+                    raise DataError("上传分片中断，请续传")
+                return self.json(workspace.uploads.append(kind, offset, body))
+            except (ValueError, DataError, OSError):
+                self.close_connection = True
+                return self.json({"error": "上传失败：类型、偏移、大小或SHA校验未通过；请核对原始数据"}, 400)
 
     return Handler
 

@@ -1,0 +1,23 @@
+# 示例需付费持久化磁盘；用户在平台确认方案后才产生资源，不自动开通。
+services:
+  - type: web
+    name: finblocks-team
+    runtime: python
+    plan: starter
+    autoDeployTrigger: off
+    buildCommand: python -m compileall -q finblocks serve_online.py
+    startCommand: python serve_online.py
+    healthCheckPath: /health
+    disk:
+      name: finblocks-workspace
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.14
+      - key: FINBLOCKS_WORKSPACE
+        value: /var/data/finblocks
+      - key: FINBLOCKS_INVITE_CODE
+        generateValue: true
+      - key: FINBLOCKS_ADMIN_CODE
+        generateValue: true

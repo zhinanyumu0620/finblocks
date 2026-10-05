@@ -132,8 +132,8 @@ class Accounts:
                 self.sessions.pop(hashlib.sha256(token.encode()).hexdigest(), None)
 
     @staticmethod
-    def cookie_header(token=None):
+    def cookie_header(token=None, secure=False):
         value = token or ""
         lifetime = SESSION_SECONDS if token else 0
         # 服务仅监听loopback HTTP；HttpOnly会话不写入页面脚本或localStorage。
-        return f"{COOKIE_NAME}={value}; Path=/; HttpOnly; SameSite=Strict; Max-Age={lifetime}"
+        return f"{COOKIE_NAME}={value}; Path=/; HttpOnly; SameSite=Strict; Max-Age={lifetime}" + ("; Secure" if secure else "")

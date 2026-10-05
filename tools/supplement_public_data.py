@@ -20,11 +20,14 @@ def encoded(document):
 
 
 def main():
+    global ROOT
     parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=Path, default=ROOT, help="线上持久化资料目录；默认本工作区")
     parser.add_argument("--end", default="2026-09-30")
     parser.add_argument("--limit", type=int, default=300)
     parser.add_argument("--refresh", action="store_true")
     args = parser.parse_args()
+    ROOT = args.root.resolve()
     if date.fromisoformat(args.end) > date.today() or not 1 <= args.limit <= 300:
         parser.error("不请求未来日期，数量须为1–300")
     stats = json.loads((ROOT / "docs/audit_evidence/data_statistics.json").read_text(encoding="utf-8"))
