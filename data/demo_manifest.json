@@ -1,0 +1,98 @@
+{
+  "selection_basis": "先质量后覆盖日期，按记录数降序和代码排序；未使用收益排序",
+  "assumptions": {
+    "min_bars": 120,
+    "limit": 3,
+    "gap_tolerance": 0.0,
+    "name_filter": "最新名称含 ST/PT/退则排除，仅为项目筛选，不证明历史证券状态"
+  },
+  "archive_sha256": "1d8fef331e13e4b8cb9084da84b783ea35860e24946347a4b92e2e78e3211c20",
+  "audited_candidates": 77,
+  "selected": [
+    {
+      "code": "sh600455",
+      "name": "博通股份",
+      "source": {
+        "archive": "股票历史数据-8.19.zip",
+        "member": "sh600455.csv",
+        "member_sha256": "0ba64e849fe952346413dd4d813c4caa1efc36289e8cff017e635922702020ab",
+        "rows": 4705,
+        "start": "2004-03-29",
+        "end": "2026-08-19",
+        "encoding": "gb18030",
+        "source_notice_skipped": true,
+        "price_basis": "源字段，复权口径未核验；本内核拒绝检测到的价差及包络异常"
+      },
+      "quality": {
+        "passed": true,
+        "issue_rows": 0,
+        "issues": [],
+        "gap_tolerance": 0.0,
+        "basis": "项目质量门槛，不能证明完整复权或实盘可成交"
+      }
+    },
+    {
+      "code": "sh688266",
+      "name": "泽璟制药-U",
+      "source": {
+        "archive": "股票历史数据-8.19.zip",
+        "member": "sh688266.csv",
+        "member_sha256": "f24d05a8f8f97c0e388e70980bbaa90938fdf163940aa202357f6ac8fc7db5ad",
+        "rows": 1592,
+        "start": "2020-01-23",
+        "end": "2026-08-19",
+        "encoding": "gb18030",
+        "source_notice_skipped": true,
+        "price_basis": "源字段，复权口径未核验；本内核拒绝检测到的价差及包络异常"
+      },
+      "quality": {
+        "passed": true,
+        "issue_rows": 0,
+        "issues": [],
+        "gap_tolerance": 0.0,
+        "basis": "项目质量门槛，不能证明完整复权或实盘可成交"
+      }
+    },
+    {
+      "code": "sh688177",
+      "name": "百奥泰",
+      "source": {
+        "archive": "股票历史数据-8.19.zip",
+        "member": "sh688177.csv",
+        "member_sha256": "cbddf28ea8ba5d4a18b985cf947b9470518daa67723e7fcb9b2130d92f536ec9",
+        "rows": 1577,
+        "start": "2020-02-21",
+        "end": "2026-08-19",
+        "encoding": "gb18030",
+        "source_notice_skipped": true,
+        "price_basis": "源字段，复权口径未核验；本内核拒绝检测到的价差及包络异常"
+      },
+      "quality": {
+        "passed": true,
+        "issue_rows": 0,
+        "issues": [],
+        "gap_tolerance": 0.0,
+        "basis": "项目质量门槛，不能证明完整复权或实盘可成交"
+      }
+    }
+  ],
+  "rejected_during_selection": [
+    {
+      "code": "sh600083",
+      "reason": "未覆盖当前数据快照末日"
+    },
+    {
+      "code": "sh600146",
+      "reason": "未覆盖当前数据快照末日"
+    },
+    {
+      "code": "sz002785",
+      "reason": "实际质量门槛或最新名称筛选未通过"
+    },
+    {
+      "code": "sh601212",
+      "reason": "实际质量门槛或最新名称筛选未通过"
+    }
+  ],
+  "remaining_candidates_not_rechecked": 70
+}

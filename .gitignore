@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.env
+.env.*
+*.zip
+*.sqlite*
+artifacts/
+private/
+tmp/
+output/
+data/public_sources/
+docs/audit_evidence/*
+!docs/audit_evidence/data_statistics.json
+!docs/audit_evidence/workspace_inventory.json
+财务历史数据/

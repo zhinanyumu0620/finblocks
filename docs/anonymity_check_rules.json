@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "audit_date": "2026-10-03",
+  "source": {
+    "file": "2026AIC算法创新赛赛题规则汇总260506-1 (1).pdf",
+    "page": 3,
+    "section": "公平性",
+    "explicitly_forbidden": ["参赛团队所在学校名称", "学校Logo", "指导教师信息"],
+    "project_conservative_extensions": ["参赛者姓名", "学院名称", "联系方式", "其他可识别参赛团队身份的信息"]
+  },
+  "execution_status": "SCANNER_IMPLEMENTED_MATERIALS_NOT_READY",
+  "execution_date": "2026-10-04",
+  "note": "M3实现扫描器与17项专测；M4补充字幕/源码格式后18项专测通过。支持显式清单、文本/元数据读取、哈希绑定人工复核；图像PDF文字及完整视频读取尚未完成。不宣称最终材料通过匿名验收。",
+  "identity_dictionary": {
+    "status": "INCOMPLETE",
+    "school_names_and_aliases": [],
+    "participant_names_and_aliases": [],
+    "advisor_names_and_aliases": [],
+    "college_names_and_aliases": [],
+    "team_contacts": [],
+    "school_logo_file_hashes": [],
+    "school_logo_visual_references": [],
+    "instruction": "开发时以本地私有配置填充实际身份词典和Logo参考，不提交到公开代码包；不能把空词典视为扫描通过。团队编号按官方命名规则允许。"
+  },
+  "scope": {
+    "readme": ["README", "README.*", "**/README", "**/README.*"],
+    "submission_directories": ["submission/**", "exports/**", "reports/**", "slides/**", "screenshots/**", "demo/**"],
+    "interface": ["所有页面可见文字", "页面标题和工具提示", "错误弹窗和日志", "下载文件名", "运行时接口响应", "AI提示词外显内容"],
+    "metadata": ["PDF作者与其他元数据", "PPT备注及隐藏页", "Word属性与批注", "图像EXIF", "视频片头片尾字幕及可见桌面", "导出文件名和路径"],
+    "internal_materials_not_for_submission": ["docs/audit_evidence/**", "docs/competition_requirements.md", "docs/competition_checklist.md", "docs/data_audit.md", "docs/development_plan.md", "docs/anonymity_check_rules.json"],
+    "instruction": "内部材料不做公开包的自动白名单；如确需提交其中任一文件，必须将其重新纳入完整匿名检查。原始比赛PDF和数据ZIP不得随整工作区自动打包。"
+  },
+  "normalization": ["Unicode NFKC", "忽略大小写", "检查原文和去除空白的文本", "身份词典逐项精确匹配", "保留命中文件和位置，检查日志不外泄身份词典"],
+  "text_rules": [
+    {
+      "id": "ANON-LABEL",
+      "basis": "官方禁止类别与项目保守策略",
+      "pattern": "(学校名称|学校|学院名称|指导教师|指导老师|导师|参赛者|作者姓名|队员姓名|联系方式)\\s*[:：]\\s*[^\\s]+",
+      "action": "REVIEW",
+      "reason": "身份字段标签是候选命中，需要判断是否实际披露身份；不可仅因出现审计说明就自动认定违规。"
+    },
+    {
+      "id": "ANON-SCHOOL-CANDIDATE",
+      "basis": "学校名称可能泄露身份",
+      "pattern": "[\\u4e00-\\u9fffA-Za-z]{2,}(大学|学院|学校)|[A-Za-z][A-Za-z ]{2,}(University|College)",
+      "action": "REVIEW",
+      "reason": "区分团队学校和必要的第三方文献/数据来源；实际团队学校由私有词典进行阻断。"
+    },
+    {
+      "id": "ANON-LOCAL-PATH",
+      "basis": "项目保守策略，防止账户名泄露",
+      "pattern": "(?:[A-Za-z]:[\\\\/](?:Users|用户)[\\\\/][^\\\\/\\s]+|/Users/[^/\\s]+|/home/[^/\\s]+)",
+      "action": "BLOCK",
+      "reason": "公开文档、错误日志、界面、截图和导出报告不得显示包含账户名的绝对路径。"
+    },
+    {
+      "id": "ANON-CONTACT",
+      "basis": "项目保守策略",
+      "pattern": "(?:微信号|微信|QQ号|联系电话|手机号|电子邮箱|邮箱)\\s*[:：]\\s*[^\\s]+|\\b1[3-9][0-9]{9}\\b|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
+      "action": "REVIEW",
+      "reason": "移除团队联系方式与无关第三方推广信息，必要来源链接须保留；不得删除真实性要求下的正当引用。"
+    }
+  ],
+  "non_text_rules": [
+    {"id": "ANON-LOGO", "method": "已知Logo指纹、图像相似性与人工视觉核对", "unreadable_action": "BLOCK"},
+    {"id": "ANON-IMAGE", "method": "截图/图表/PPT嵌入图像的OCR和视觉核对", "unreadable_action": "BLOCK"},
+    {"id": "ANON-VIDEO", "method": "片头片尾、字幕、桌面和界面关键帧检查，并完整观看实际视频", "unreadable_action": "BLOCK"}
+  ],
+  "pass_conditions": [
+    "实际交付材料清单非空且覆盖README、界面、PPT素材、截图、演示模式和导出报告",
+    "身份词典已完成配置",
+    "全部实际文本及元数据成功读取",
+    "图片、Logo和视频完成视觉复核",
+    "全部BLOCK命中已消除，全部REVIEW命中有明确结论",
+    "无法读取、未生成或尚未检查的材料不得标记PASS",
+    "合法引用保留、团队编号与官方命名规则一致"
+  ],
+  "current_result": {
+    "final_submission_status": "NOT_READY",
+    "reason": "方案、答辩、视频、佐证与源码审阅包已形成并纳入M4显式扫描；身份词典未配置，图像PDF/完整视频不可完整读取，图像/Logo/视频人工复核尚未完成。"
+  }
+}

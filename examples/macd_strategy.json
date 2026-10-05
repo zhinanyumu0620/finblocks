@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "MACD柱值大于零示例，12/26/9为项目演示参数",
+  "nodes": [
+    {"id": "price", "op": "field", "field": "close"},
+    {"id": "macd_histogram", "op": "macd", "input": "price", "fast": 12, "slow": 26, "signal": 9, "component": "histogram"},
+    {"id": "zero", "op": "const", "value": 0},
+    {"id": "condition", "op": "gt", "left": "macd_histogram", "right": "zero"}
+  ],
+  "signal": "condition",
+  "allocation": {"when_true": 1.0, "when_false": 0.0}
+}

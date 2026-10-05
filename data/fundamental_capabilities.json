@@ -1,0 +1,44 @@
+{
+  "source": {
+    "archive": "财务历史数据/谷票财务历史数据.zip",
+    "audit": "artifacts/m5_fundamental_audit.json"
+  },
+  "indicators": [
+    {
+      "id": "pe",
+      "label": "市盈率 PE",
+      "status": "UNAVAILABLE",
+      "reason": "缺少核实的历史利润/EPS单位、累计口径和修订可得时点"
+    },
+    {
+      "id": "pb",
+      "label": "市净率 PB",
+      "status": "UNAVAILABLE",
+      "reason": "净资产原字段单位及修订时点未核实，无法可靠历史对齐"
+    },
+    {
+      "id": "roe",
+      "label": "净资产收益率 ROE",
+      "status": "UNAVAILABLE",
+      "reason": "利润/权益口径、单位与历史版本未核实"
+    },
+    {
+      "id": "revenue_growth",
+      "label": "营收增长",
+      "status": "UNAVAILABLE",
+      "reason": "原字段语义及累计/单季口径和修订版本未核实"
+    },
+    {
+      "id": "profit_growth",
+      "label": "利润增长",
+      "status": "UNAVAILABLE",
+      "reason": "同报告期存在不同发布版本，不能用最新值回填过去"
+    }
+  ],
+  "raw_financial_reports": {
+    "status": "SUPPORTED",
+    "unit": "UNKNOWN",
+    "historical_factor_supported": false,
+    "reason": "可浏览原始报告期、发布日期和原字段值；保留版本，不计算基本面回测因子"
+  }
+}

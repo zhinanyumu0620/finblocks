@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "人工MA5/20示例，参数为项目演示假设",
+  "nodes": [
+    {"id": "price", "op": "field", "field": "close"},
+    {"id": "fast", "op": "ma", "input": "price", "window": 5},
+    {"id": "slow", "op": "ma", "input": "price", "window": 20},
+    {"id": "condition", "op": "gt", "left": "fast", "right": "slow"}
+  ],
+  "signal": "condition",
+  "allocation": {"when_true": 1.0, "when_false": 0.0}
+}

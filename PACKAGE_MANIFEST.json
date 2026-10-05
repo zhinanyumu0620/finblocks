@@ -1,0 +1,267 @@
+{
+  "format": "finblocks-team-source",
+  "version": 1,
+  "scope": "当前源码与最小配置；不含数据、凭据、个人账户、官方原件或历史参赛材料；清单不包含自身。",
+  "files": [
+    {
+      "path": ".gitignore",
+      "bytes": 250,
+      "sha256": "fe1ce5821a50073a1cc103773e024b43dede612c26169be467c3052e399b850c"
+    },
+    {
+      "path": "data/csi300_manifest.json",
+      "bytes": 506247,
+      "sha256": "850763a869e71e2b2150d21f2425e5409c5b2c205117830a6c8cd7b7e831728f"
+    },
+    {
+      "path": "data/demo_manifest.json",
+      "bytes": 3250,
+      "sha256": "7d3e78ae0500b7c94cfa78eae8549093fe018dd3d5f2e1a8a2b6d10db42ab3cc"
+    },
+    {
+      "path": "data/fundamental_capabilities.json",
+      "bytes": 1372,
+      "sha256": "777f6628f599580615263420fc9c9c1583d20052c365c14c251705e3405c65e8"
+    },
+    {
+      "path": "data/reference_sources/000300cons_read.json",
+      "bytes": 71849,
+      "sha256": "690768a92c5d671045f4a344acda002d3c4159f92768c51a179dc86bc7a33e89"
+    },
+    {
+      "path": "docs/anonymity_check_rules.json",
+      "bytes": 5303,
+      "sha256": "ca783e2a3035ae39a9278c0d7578c9f474eae07743c356ea55fa2b4d53faff96"
+    },
+    {
+      "path": "docs/audit_evidence/data_statistics.json",
+      "bytes": 287,
+      "sha256": "e3c34f82089b8d157582ef83b333f875d553cbb7445393e379351deb5651a0ad"
+    },
+    {
+      "path": "docs/audit_evidence/workspace_inventory.json",
+      "bytes": 297,
+      "sha256": "d7012593f414511a460268b0a2a57793438d69db583c37b9a9b2c085c0f5e82f"
+    },
+    {
+      "path": "examples/bollinger_strategy.json",
+      "bytes": 433,
+      "sha256": "9a76a37ecaaab4b4fedd625f350d66800f339e2e500e66c6d7263a282ec38e3d"
+    },
+    {
+      "path": "examples/ma_strategy.json",
+      "bytes": 429,
+      "sha256": "87b3af0accacf526fc553d0a7649365992c75f813af89764468688eae743c245"
+    },
+    {
+      "path": "examples/macd_strategy.json",
+      "bytes": 492,
+      "sha256": "7b58a8a760d27a61ed17699fbfe1b390b7892ba3a72881601558dde14f077742"
+    },
+    {
+      "path": "examples/strategy_request.txt",
+      "bytes": 345,
+      "sha256": "750df578b26a872b45ec36c097c196d702bbd4eab51d3d47c413b18dfca85a58"
+    },
+    {
+      "path": "examples/unsupported_request.txt",
+      "bytes": 215,
+      "sha256": "d84c1ea752e70fc9391caa87f24296f7ffdfa0c0e04432e4d76075846d6a5c37"
+    },
+    {
+      "path": "finblocks/__init__.py",
+      "bytes": 67,
+      "sha256": "269674706e3bdace105a3c63ec6951728b0d905f778c64c663649332e269db8c"
+    },
+    {
+      "path": "finblocks/__main__.py",
+      "bytes": 8055,
+      "sha256": "c92b4f8de734e48909eebe1ff29c4e769d6cc7f6648fd5689dc4f303179c8f0c"
+    },
+    {
+      "path": "finblocks/ai.py",
+      "bytes": 12735,
+      "sha256": "153265ec65eac023ee7315c243ce44a9942497b8061b2806f61cef86ddc3e531"
+    },
+    {
+      "path": "finblocks/auth.py",
+      "bytes": 6109,
+      "sha256": "18c2fbdebcee2c53672b00c79fbdbb7901dc63e52aefec46c81709f81baf7280"
+    },
+    {
+      "path": "finblocks/backtest.py",
+      "bytes": 11134,
+      "sha256": "ae25e16158ff43e83a5085af8a849344a3afa2bb90cffb6f94a6513ce3cfdc65"
+    },
+    {
+      "path": "finblocks/compliance.py",
+      "bytes": 21390,
+      "sha256": "d3b1a0d0823f637b175f75ba0c026524f133e3f05f7ad434b65b39a1d79272ac"
+    },
+    {
+      "path": "finblocks/data.py",
+      "bytes": 8332,
+      "sha256": "9e47c43c2c54096aef1e097cdb608e68c51584fb5362cb0e61451b53e003dcc4"
+    },
+    {
+      "path": "finblocks/dsl.py",
+      "bytes": 12982,
+      "sha256": "1518a6bc63f77647a050ff7b31a38ca52416cf8679eb160465153bbaeabd110a"
+    },
+    {
+      "path": "finblocks/factors.py",
+      "bytes": 17224,
+      "sha256": "4518629e2fe51c48eb29a81523f049ff5b4eb36b7d08ecaa92bc9323eb358ee2"
+    },
+    {
+      "path": "finblocks/fundamentals.py",
+      "bytes": 2237,
+      "sha256": "25e9843c30bcf31998cd63ba39f89dd2c97d369eea65a173994e2dfa337c3ed3"
+    },
+    {
+      "path": "finblocks/portfolio.py",
+      "bytes": 12127,
+      "sha256": "81536c54b2f699320590f647fc2de4e61c4cb967753aff8953b3468a87c861be"
+    },
+    {
+      "path": "finblocks/public_data.py",
+      "bytes": 10544,
+      "sha256": "d310c3936db399f038745c02c63332d3f001ecc4e76120151eb5554c9ea5f2b5"
+    },
+    {
+      "path": "finblocks/research.py",
+      "bytes": 10882,
+      "sha256": "bde19023edd528a749c998ee44299cf2c35ed15b6d7dad1afa92c78c2c9af5dc"
+    },
+    {
+      "path": "finblocks/web.py",
+      "bytes": 55091,
+      "sha256": "09a8c77ce02c244456d76951d6acfce6c12a4de5984c821286ad8ae6ec3c23be"
+    },
+    {
+      "path": "README.md",
+      "bytes": 828,
+      "sha256": "bab3cebaff45d573488cfc9cc31cbc2e1ee1707edc5fb6f95a45f833abfd112d"
+    },
+    {
+      "path": "run.ps1",
+      "bytes": 536,
+      "sha256": "e173c301fbace1480e4d87e5a2cc887056ecaff21b2120c0c6233beca1c8b1f5"
+    },
+    {
+      "path": "start.cmd",
+      "bytes": 448,
+      "sha256": "984fb7b2400643ef6124f249bfac20f0b4e034dd93d5f5325b804dc4acb54b19"
+    },
+    {
+      "path": "start_finblocks.py",
+      "bytes": 2184,
+      "sha256": "e0c826e8514962edd5fb5e16a9fcbe7106ed2306d20358f45817df860e5cd33f"
+    },
+    {
+      "path": "TEAM_README.md",
+      "bytes": 4439,
+      "sha256": "c583f8333623ae54cc66d934cdc66ac16f74a7600d2994281c00593e2ebf6e49"
+    },
+    {
+      "path": "tests/test_auth.py",
+      "bytes": 3832,
+      "sha256": "8788c15345c9b50e245c57336c5c04fd3eb5e63e770144062e3045d1db84ec17"
+    },
+    {
+      "path": "tests/test_compliance.py",
+      "bytes": 12097,
+      "sha256": "05bc11d6ae0068f08087101b904a7c6d1944cfcfe1c40b63f661629176aa7aad"
+    },
+    {
+      "path": "tests/test_core.py",
+      "bytes": 7472,
+      "sha256": "5dd6e6a1f795859ea9e2c3eefc401f3efd80069fa60fcc10cc98c196ed2b9c91"
+    },
+    {
+      "path": "tests/test_distribution.py",
+      "bytes": 2150,
+      "sha256": "21e9dc408467b5cac246f906487765d8b28fad32173d5966d81697987a28d013"
+    },
+    {
+      "path": "tests/test_indicators.py",
+      "bytes": 11354,
+      "sha256": "cffebd5bb9d7af2dfd4628bcec142aef179dcb1cc0e8a8204d439a0972edb971"
+    },
+    {
+      "path": "tests/test_metrics.py",
+      "bytes": 9733,
+      "sha256": "b504f3e95289c0adc399f74eaf88842db084d231b8deeb1f3788f538a50643c5"
+    },
+    {
+      "path": "tests/test_portfolio.py",
+      "bytes": 6419,
+      "sha256": "5a87aa26eb1feb408c32dfcd941cf4a4e4af1752c216264a544ecbcd89408c62"
+    },
+    {
+      "path": "tests/test_public_data.py",
+      "bytes": 6859,
+      "sha256": "9fe786857ed419752f03ed3171be220540b5a03b967d13ed07ee6497f64037b5"
+    },
+    {
+      "path": "tests/test_real_data.py",
+      "bytes": 3519,
+      "sha256": "457007afdf2352784857f20d24bfbb0233af2d1a8f6ad143fecd5c53ffbabd92"
+    },
+    {
+      "path": "tests/test_research.py",
+      "bytes": 13388,
+      "sha256": "fab6976d05d2d519705cfb3159134d1e15262859c570beda510908afedc15328"
+    },
+    {
+      "path": "tests/test_ui_state.cjs",
+      "bytes": 23332,
+      "sha256": "cfd0528fdfdd7be1badafba24c01f609653158cac32bb4e30204fcd60984099d"
+    },
+    {
+      "path": "tests/test_web.py",
+      "bytes": 23322,
+      "sha256": "e50ad93c01f9811809bcbf4b30c467dd1e06d456e8403a158ffd4e8874f85f8a"
+    },
+    {
+      "path": "tools/supplement_public_data.py",
+      "bytes": 4951,
+      "sha256": "2d24f93d6ef808db9fc5cb14053b7dcf5ce815dffcd15aab3f3475d12da8fcfd"
+    },
+    {
+      "path": "tools/verify_shared_package.py",
+      "bytes": 871,
+      "sha256": "8b4630f1693cc13d538e801fe961d18a904f4b3b7c6428c71161955aaf4edbc9"
+    },
+    {
+      "path": "web/app.js",
+      "bytes": 44369,
+      "sha256": "5e3081597a1b3d00e5623fc03b57adc2444c4ba74890419701d82849a077c27b"
+    },
+    {
+      "path": "web/experience.js",
+      "bytes": 17780,
+      "sha256": "f4d5af18202923d19b1099a5331d8ce66c3daba1f28938a43a969812600c5fcd"
+    },
+    {
+      "path": "web/index.html",
+      "bytes": 27960,
+      "sha256": "2b6587013d77c777234b7da6b4a4b2269288ac9ffd893da814d3216137d0b085"
+    },
+    {
+      "path": "web/portfolio.js",
+      "bytes": 9158,
+      "sha256": "05a7f9b80ffa7ce86c4b274778035ee373c488f0284fc870acb510fa6310f48f"
+    },
+    {
+      "path": "web/research.js",
+      "bytes": 23262,
+      "sha256": "235d0e40b394831cf352635aef827378ddc08d537c25e96f6702fcfe1a4a1c65"
+    },
+    {
+      "path": "web/styles.css",
+      "bytes": 35319,
+      "sha256": "9257da53176061b9dabcdbad4fbb408a01e76c457b740996aadebc957698e158"
+    }
+  ]
+}
