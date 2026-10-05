@@ -57,4 +57,4 @@ python -m unittest discover -s tests -p test_core.py -v
 python -m unittest discover -s tests -p test_distribution.py -v
 ```
 
-完整测试中的行情、财务和公开快照测试需要相应数据。本包的 `PACKAGE_MANIFEST.json` 记录每个文件的SHA-256，`tools/verify_shared_package.py` 检查其一致性；测试生成的构造数据不是产品行情。
+完整测试需要原工作区的金融数据、公开快照及历史验收证据；上面两组测试可在共享包中独立运行。若已有Node，可执行 `node --test tests/test_ui_state.cjs`；其中两项依赖本地真实研究证据的检查在未提供证据时明确跳过，其余检查实际执行。本包的 `PACKAGE_MANIFEST.json` 记录每个文件的SHA-256，`tools/verify_shared_package.py` 检查其一致性；测试生成的构造数据不是产品行情。

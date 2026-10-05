@@ -160,8 +160,8 @@
     },
     {
       "path": "TEAM_README.md",
-      "bytes": 4439,
-      "sha256": "c583f8333623ae54cc66d934cdc66ac16f74a7600d2994281c00593e2ebf6e49"
+      "bytes": 4679,
+      "sha256": "cc738199fa4fbb04894f7af87308e625d8f50abe72f8948ac64ef38ccb7270b7"
     },
     {
       "path": "tests/test_auth.py",
@@ -215,8 +215,8 @@
     },
     {
       "path": "tests/test_ui_state.cjs",
-      "bytes": 23332,
-      "sha256": "cfd0528fdfdd7be1badafba24c01f609653158cac32bb4e30204fcd60984099d"
+      "bytes": 23582,
+      "sha256": "5ace515ae88e51e3a95f392454fe8554be8e633fdde66f7a7d4e215f4866a357"
     },
     {
       "path": "tests/test_web.py",

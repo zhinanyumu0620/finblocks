@@ -350,7 +350,7 @@ test("技术指标与常量是数值输入，候选描述展示真实分量", ()
   assert.equal(context.numeric({op: "gt"}), false);
 });
 
-test("真实四股统计绘图保留负值及时间序列与IC的不同名称", () => {
+test("真实四股统计绘图保留负值及时间序列与IC的不同名称", {skip: !fs.existsSync(path.join(root,"artifacts/m8_factor_cross_section.json")) && "共享包不含本地真实因子证据"}, () => {
   const {context}=harness();vm.runInContext(fs.readFileSync(path.join(root,"web/research.js"),"utf8"),context);
   const result=JSON.parse(fs.readFileSync(path.join(root,"artifacts/m8_factor_cross_section.json"),"utf8"));
   const html=context.factorVisualization(result);
@@ -385,7 +385,7 @@ test("研究失效同时清除键盘图表读取的旧账号数据", () => {
   assert.ok(!context.document.getElementById("chart-readout").textContent.includes("原账号"));
 });
 
-test("真实净值的画布坐标、悬停与单条记录均为有限值", () => {
+test("真实净值的画布坐标、悬停与单条记录均为有限值", {skip: !fs.existsSync(path.join(root,"artifacts/m8_converted_backtest.json")) && "共享包不含本地真实回测证据"}, () => {
   const {context,state}=harness();const coordinates=[];
   const ctx={scale(){},fillRect(){},fillText(){},beginPath(){},stroke(){},fill(){},closePath(){},setLineDash(){},createLinearGradient(){return {addColorStop(){}};},moveTo(...v){coordinates.push(...v);},lineTo(...v){coordinates.push(...v);},arc(x,y){coordinates.push(x,y);}};
   const canvas=context.document.getElementById("chart");canvas.getBoundingClientRect=()=>({width:320,height:260});canvas.getContext=()=>ctx;context.window={devicePixelRatio:2};
