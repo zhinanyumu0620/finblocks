@@ -1,4 +1,4 @@
-"""实际 DeepSeek 调用；只读取环境密钥，不保存凭据或思考内容。"""
+"""实际AI调用；个人连接按请求隔离，保留DSL及研究证据校验。"""
 
 import hashlib
 from datetime import datetime, timezone
@@ -10,6 +10,7 @@ import urllib.request
 
 from .dsl import compile_strategy
 from .research import audit_intent
+from .ai_settings import ACTIVE_CONNECTION, open_public_request
 
 
 class AIError(ValueError):
@@ -45,26 +46,79 @@ JSON 格式例子（这些窗口是格式示例，不是默认用户参数）：
 
 
 def _request(path, payload=None, timeout=40):
-    key = os.environ.get("DEEPSEEK_API_KEY")
+    connection = ACTIVE_CONNECTION.get()
+    key = connection.api_key if connection else os.environ.get("DEEPSEEK_API_KEY")
     if not key or not key.strip():
-        raise AIError("缺少 DEEPSEEK_API_KEY；不会返回假模型结果")
+        raise AIError("个人API Key未配置或本次登录已结束，请打开AI设置" if connection else "缺少 DEEPSEEK_API_KEY；请登录后打开AI设置")
     encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8") if payload is not None else None
-    request = urllib.request.Request("https://api.deepseek.com" + path, data=encoded,
+    request = urllib.request.Request((connection.base_url if connection else "https://api.deepseek.com") + path, data=encoded,
                                     headers={"Authorization": "Bearer " + key.strip(),
                                              "Content-Type": "application/json", "Accept": "application/json"})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        opener = open_public_request if connection else urllib.request.urlopen
+        with opener(request, timeout=timeout) as response:
             raw = response.read(2 * 1024 * 1024 + 1)
             if len(raw) > 2 * 1024 * 1024:
                 raise AIError("模型响应超过项目读取上限")
-        return json.loads(raw)
+        parsed = json.loads(raw)
+        if key.strip() in json.dumps(parsed, ensure_ascii=False):
+            raise AIError("服务响应包含API凭据，已丢弃响应")
+        return parsed
     except urllib.error.HTTPError as exc:
         # 不输出服务响应正文，避免错误页回显请求或凭据。
-        raise AIError(f"DeepSeek HTTP {exc.code}；请检查网络、账号权限或额度") from None
+        raise AIError(f"{connection.label if connection else 'DeepSeek'} HTTP {exc.code}；请检查API地址、密钥、模型权限或额度") from None
     except (urllib.error.URLError, TimeoutError, OSError):
-        raise AIError("DeepSeek 网络不可达或超时；不会回退为假 AI") from None
+        raise AIError("AI服务网络不可达或超时；不会回退为假 AI") from None
+    except AIError:
+        raise
     except (ValueError, UnicodeError):
-        raise AIError("DeepSeek 响应不是有效 JSON") from None
+        raise AIError("AI服务响应不是有效 JSON") from None
+
+
+def selected_model(model=None):
+    connection = ACTIVE_CONNECTION.get()
+    if connection:
+        return model or connection.model
+    model = model or "deepseek-flash"
+    if model not in list_models():
+        raise AIError("所选模型不在实际API可用列表中")
+    return model
+
+
+def chat_options():
+    connection = ACTIVE_CONNECTION.get()
+    provider = connection.provider if connection else "deepseek"
+    if provider == "deepseek" or provider == "kimi" and connection.model == "kimi-k2.6":
+        return {"thinking": {"type": "disabled"}}
+    if provider == "qwen":
+        return {"enable_thinking": False}
+    return {}
+
+
+def provider_evidence():
+    connection = ACTIVE_CONNECTION.get()
+    return {"provider": connection.label if connection else "DeepSeek",
+            "api_base_url": connection.base_url if connection else "https://api.deepseek.com"}
+
+
+def test_connection(connection):
+    """只由显式测试按钮调用短JSON请求，不在保存或登录时自动消费。"""
+    token = ACTIVE_CONNECTION.set(connection)
+    try:
+        result = _request("/chat/completions", {"model": connection.model, "messages": [
+            {"role": "system", "content": '只返回JSON对象 {"status":"ok"}。'},
+            {"role": "user", "content": "测试JSON连接。"}], "response_format": {"type": "json_object"},
+            "max_tokens": 128, **chat_options()}, timeout=20)
+        try:
+            choice = result["choices"][0]
+            if choice["finish_reason"] != "stop" or json.loads(choice["message"]["content"]) != {"status": "ok"}:
+                raise ValueError()
+        except (KeyError, IndexError, TypeError, ValueError):
+            raise AIError("服务有响应，但短请求未通过JSON校验；请检查模型是否支持JSON输出") from None
+        return {"status": "PASS", "provider": connection.label, "model_returned": result.get("model"),
+                "scope": "实际短JSON请求通过；不证明策略语义正确"}
+    finally:
+        ACTIVE_CONNECTION.reset(token)
 
 
 def list_models():
@@ -72,13 +126,12 @@ def list_models():
     return [item["id"] for item in response.get("data", []) if isinstance(item, dict) and isinstance(item.get("id"), str)]
 
 
-def generate_strategy(prompt: str, model="deepseek-flash"):
+def generate_strategy(prompt: str, model=None):
     if not isinstance(prompt, str) or not 1 <= len(prompt.strip()) <= 4000:
         raise AIError("策略需求须为 1–4000 个字符")
-    if model not in list_models():
-        raise AIError("所选模型不在实际 API 返回的可用模型列表中")
+    model = selected_model(model)
     payload = {"model": model, "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
-               "response_format": {"type": "json_object"}, "thinking": {"type": "disabled"}, "max_tokens": 1800}
+               "response_format": {"type": "json_object"}, "max_tokens": 1800, **chat_options()}
     started = time.perf_counter()
     response = _request("/chat/completions", payload)
     try:
@@ -91,7 +144,7 @@ def generate_strategy(prompt: str, model="deepseek-flash"):
         parsed = json.loads(content, parse_constant=reject_nonfinite)
         if not isinstance(parsed, dict):
             raise AIError("模型响应根结构须为 JSON 对象")
-        evidence = {"provider": "DeepSeek", "model_requested": model, "model_returned": response.get("model"),
+        evidence = {**provider_evidence(), "model_requested": model, "model_returned": response.get("model"),
                     "recorded_at_utc": datetime.now(timezone.utc).isoformat(), "server_created": response.get("created"),
                     "response_id": response.get("id"), "finish_reason": choice["finish_reason"],
                     "elapsed_seconds": round(time.perf_counter() - started, 3),
@@ -112,14 +165,13 @@ def generate_strategy(prompt: str, model="deepseek-flash"):
         raise AIError("模型输出未通过 JSON/DSL 校验，未执行；" + str(exc)) from None
 
 
-def research_call(system, document, model="deepseek-flash"):
+def research_call(system, document, model=None):
     """研究请求只传明确确认的数据摘要，不保存凭据或模型思考。"""
     system = system + "\n严格只输出json对象。"  # 服务JSON模式要求提示中出现json。
-    if model not in list_models():
-        raise AIError("所选模型不在实际API可用列表中")
+    model = selected_model(model)
     payload = {"model": model, "messages": [{"role": "system", "content": system},
                {"role": "user", "content": json.dumps(document, ensure_ascii=False, allow_nan=False)}],
-               "response_format": {"type": "json_object"}, "thinking": {"type": "disabled"}, "max_tokens": 1800}
+               "response_format": {"type": "json_object"}, "max_tokens": 1800, **chat_options()}
     started = time.perf_counter()
     response = _request("/chat/completions", payload)
     try:
@@ -133,7 +185,7 @@ def research_call(system, document, model="deepseek-flash"):
             raise ValueError("根结构不是对象")
     except (KeyError, IndexError, TypeError, ValueError):
         raise AIError("研究模型响应未通过结构校验，未执行") from None
-    return parsed, {"provider": "DeepSeek", "model_returned": response.get("model"), "response_id": response.get("id"),
+    return parsed, {**provider_evidence(), "model_returned": response.get("model"), "response_id": response.get("id"),
                     "model_requested": model, "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
                     "usage": response.get("usage"), "elapsed_seconds": round(time.perf_counter() - started, 3),
                     "generated_by_real_api": True, "system_prompt_sha256": hashlib.sha256(system.encode()).hexdigest(),

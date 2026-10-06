@@ -51,7 +51,7 @@ function factorRequest(){
   if(!$("factor-protocol-confirm").checked)throw new Error("请先确认公式、股票集合、日期与分区协议");
   if(!$("factor-start").value||!$("factor-end").value)throw new Error("因子实验须明确填写日期，不自动缩短样本");
   return {expression:$("factor-expression").value,symbols:$("factor-symbols").value.split(/[,，\s]+/).filter(Boolean),start:$("factor-start").value,end:$("factor-end").value,
-    ...($("data-source")?.value==="public_hfq"?{data_source:"public_hfq"}:{}),protocol:{mode:$("factor-mode").value,horizon:Number($("factor-horizon").value),train_fraction:Number($("factor-train").value)/100,validation_fraction:Number($("factor-validation").value)/100,min_samples:Number($("factor-min-samples").value)},confirmed:true};
+    ...($("data-source")?.value&&$("data-source").value!=="original"?{data_source:$("data-source").value}:{}),protocol:{mode:$("factor-mode").value,horizon:Number($("factor-horizon").value),train_fraction:Number($("factor-train").value)/100,validation_fraction:Number($("factor-validation").value)/100,min_samples:Number($("factor-min-samples").value)},confirmed:true};
 }
 // 固定[-1,1]坐标只展示实际相关统计；冻结前不读取测试指标。
 function factorVisualization(result){

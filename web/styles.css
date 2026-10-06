@@ -81,5 +81,9 @@ footer{font-size:11px;color:#627985;padding-top:24px}
 .metrics small,.factor-phase>p,.reference-card small,.factor-scale{color:#596b65}.metrics strong{overflow-wrap:anywhere}input::placeholder,textarea::placeholder{color:#596b65;opacity:1}
 
 /* 股票池组合配置与真实执行明细，沿用当前平面样式。 */
+.ai-settings-dialog{max-height:85vh;overflow:auto}.ai-settings-dialog form>label{display:block;margin-top:16px}.ai-settings-dialog form>input,.ai-settings-dialog form>select{width:100%}.ai-settings-dialog .check-label{display:flex;align-items:center;gap:8px}.ai-settings-dialog a{display:inline-block;margin-top:8px;font-size:12px}.ai-settings-dialog .research-output{white-space:pre-wrap;overflow-wrap:anywhere}
 .allocation-mode-note{padding:12px 18px;font-size:12px;color:var(--muted);line-height:1.8;border-top:1px solid var(--line)}
+#term-dialog{width:min(620px,calc(100% - 32px));max-height:85vh}.term-section{padding:14px 0;border-top:1px solid var(--line)}.term-section h3{margin:0;font-size:13px;color:var(--ink)}.term-section p{margin:7px 0 0;font-size:14px;line-height:1.9}.term-sources a{display:block;margin-top:8px;font-size:12px;color:#245747;text-underline-offset:3px}
 #portfolio-config label{margin-top:14px}#portfolio-config textarea{font-size:12px}.portfolio-check{font-size:12px;line-height:1.8;margin:12px 0}.portfolio-check .table-wrap{max-height:260px;overflow:auto}.portfolio-detail{padding-bottom:24px}.portfolio-detail>label{margin-top:16px}.portfolio-detail>select{max-width:330px;margin-bottom:12px}.portfolio-detail p{font-size:12px;line-height:1.8;margin:12px 0;overflow-wrap:anywhere}.portfolio-detail .table-wrap{margin-top:12px}
+
+#csv-dialog{max-height:85vh;overflow:auto}#csv-form>label{margin-top:16px}#csv-file{height:auto;min-height:40px;padding:9px}#csv-message{overflow-wrap:anywhere;margin:14px 0}

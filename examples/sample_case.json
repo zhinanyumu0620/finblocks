@@ -1,0 +1,59 @@
+{
+  "format": "finblocks-workspace",
+  "version": 1,
+  "strategy": {
+    "version": 1,
+    "name": "真实案例：MA5/20三股共享现金",
+    "nodes": [
+      {
+        "id": "price",
+        "op": "field",
+        "field": "close"
+      },
+      {
+        "id": "fast",
+        "op": "ma",
+        "input": "price",
+        "window": 5
+      },
+      {
+        "id": "slow",
+        "op": "ma",
+        "input": "price",
+        "window": 20
+      },
+      {
+        "id": "condition",
+        "op": "gt",
+        "left": "fast",
+        "right": "slow"
+      }
+    ],
+    "signal": "condition",
+    "allocation": {
+      "when_true": 1,
+      "when_false": 0
+    }
+  },
+  "config": {
+    "symbol": "AAPL",
+    "mode": "portfolio",
+    "data_source": "sample",
+    "symbols": [
+      "AAPL",
+      "IBM",
+      "MSFT"
+    ],
+    "start": "2012-01-03",
+    "end": "2012-12-31",
+    "cost_bps": 10,
+    "lag": 1,
+    "periods_per_year": 252,
+    "annual_risk_free_rate": 0,
+    "portfolio": {
+      "max_positions": 3,
+      "position_cap": 0.3333333333333333,
+      "rebalance_every": 1
+    }
+  }
+}

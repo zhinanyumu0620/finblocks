@@ -1,0 +1,36 @@
+{
+  "label": "内置真实案例 · 美股历史日线",
+  "sha256": "b2e179c74d847e47622bbad96179b9761852f8a70d57025f7052efe58390ea74",
+  "provenance": {
+    "source_notice": "Bokeh官方bokeh_sampledata样例包；stocks模块标注来源为public news sources",
+    "repository": "https://github.com/bokeh/bokeh_sampledata",
+    "commit": "4195d5e5c3094ef578be168778c7e9501138f921",
+    "files": [
+      {
+        "symbol": "AAPL",
+        "url": "https://raw.githubusercontent.com/bokeh/bokeh_sampledata/4195d5e5c3094ef578be168778c7e9501138f921/src/bokeh_sampledata/_data/AAPL.csv",
+        "raw_sha256": "855f0b122ac0e4c5b9464d1862f6c56bcd2c1cd7eb94db6fa6c798546964dff8",
+        "selected_rows": 250
+      },
+      {
+        "symbol": "IBM",
+        "url": "https://raw.githubusercontent.com/bokeh/bokeh_sampledata/4195d5e5c3094ef578be168778c7e9501138f921/src/bokeh_sampledata/_data/IBM.csv",
+        "raw_sha256": "869438773969350798819547aed0ea16cf9e92ccde84c00069f72c144978d6b1",
+        "selected_rows": 250
+      },
+      {
+        "symbol": "MSFT",
+        "url": "https://raw.githubusercontent.com/bokeh/bokeh_sampledata/4195d5e5c3094ef578be168778c7e9501138f921/src/bokeh_sampledata/_data/MSFT.csv",
+        "raw_sha256": "b3d95da3b72a786616c10b196999c5fc2f7e42dc37be0723ae9038a9244f0f82",
+        "selected_rows": 250
+      }
+    ],
+    "license": "BSD-3-Clause（上游分发许可原文随包保留）",
+    "license_url": "https://raw.githubusercontent.com/bokeh/bokeh_sampledata/4195d5e5c3094ef578be168778c7e9501138f921/LICENSE.txt",
+    "price_basis": "上游原始OHLC，未将Adj Close混入；复权/企业行动未独立核验",
+    "volume_unit": "股",
+    "currency": "USD",
+    "selection": "固定AAPL/IBM/MSFT的2012年日线，不按策略收益挑选；2013仅41条，故选足够预热的完整2012年；仅选原字段，按日期排序",
+    "verification": "真实历史样例非生成行情；不是交易所认证或最新行情，不代表沪深300，不证明完整市场撮合"
+  }
+}

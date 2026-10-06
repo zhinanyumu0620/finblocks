@@ -16,7 +16,8 @@ import threading
 import uuid
 import zlib
 
-from .ai import AIError, generate_strategy, generate_factor, explain_research
+from .ai import AIError, generate_strategy, generate_factor, explain_research, test_connection
+from .ai_settings import AIProfiles, PRESETS
 from .auth import Accounts, AuthError
 from .backtest import run_backtest, validate_metric_parameters
 from .data import DataError, load_daily, sha256_file, require_valid
@@ -26,6 +27,7 @@ from .fundamentals import load_financial_reports
 from .research import ResearchJournal, audit_intent, repair_strategy, evidence_pack, document_hash
 from .portfolio import run_portfolio, validate_portfolio_options
 from .public_data import SOURCE_ID, LIMITATIONS, public_manifest, load_public_daily
+from .csv_data import CSVData, is_csv_source
 
 
 def encode_json(value):
@@ -79,6 +81,7 @@ class Workspace:
         self.root = Path(root)
         self.policy = policy
         self.uploads = None
+        self.csv_data = CSVData(self.root)
         stats = json.loads((self.root / "docs/audit_evidence/data_statistics.json").read_text(encoding="utf-8"))
         self.archive = self.root / stats["archives"][0]["path"]
         self.manifest = json.loads((self.root / "data/demo_manifest.json").read_text(encoding="utf-8"))
@@ -102,6 +105,7 @@ class Workspace:
         if self.archive.exists():
             self.ensure_archive()
         self.accounts = Accounts(self.root / "private/test_accounts.sqlite3")
+        self.ai_profiles = AIProfiles(self.root / "private/ai_profiles.sqlite3")
         self.run_owners, self.generation_owners, self.export_owners = {}, {}, {}
         self.journal = ResearchJournal(self.root / "private/research_history.sqlite3")
 
@@ -118,35 +122,46 @@ class Workspace:
                 self.signature = signature
 
     def bootstrap(self, user=None):
+        profile = self.ai_profiles.public(user["id"] if user else None)
         return {"token": self.token, "symbols": [{"code": code, "name": item["name"], **item["source"],
                                                   "pool": item["pool"], "local_data": item.get("local_data", True),
                                                   "quality": item.get("quality", {"full_history_passed": True})}
                                                  for code, item in self.symbols.items()],
                 "stock_pool": {key: self.pool[key] for key in ("index_code", "name", "as_of", "official_url", "official_sha256", "summary", "limitations")},
-                "default_strategy": self.default_strategy, "ai_configured": bool(os.environ.get("DEEPSEEK_API_KEY", "").strip()),
+                "default_strategy": self.default_strategy, "ai_configured": profile["configured"],
+                "ai_profile": profile, "ai_providers": PRESETS, "ai_remember_supported": os.name == "nt",
                 "user": user,
                 "online": self.policy is not None,
                 "defaults": {"cost_bps": 10, "lag": 1, "periods_per_year": 252, "annual_risk_free_rate": 0.0}, "price_gap_tolerance": 0.0,
                 "fundamentals": json.loads((self.root / "data/fundamental_capabilities.json").read_text(encoding="utf-8")),
-                "data_sources": self.data_sources(),
+                "data_sources": self.data_sources(user["id"] if user else None),
+                "default_data_source": "sample" if not self.archive.is_file() and (self.root / "data/sample/manifest.json").is_file() else "original",
                 "limits": ["日频分数持仓研究", "原始价格复权口径未外部核验；公开快照单独审计", "基本面PIT、指数、分钟和实盘未开放"]}
 
-    def data_sources(self):
+    def data_sources(self, owner=None):
+        sources = self.csv_data.sources(owner)
         try:
             manifest = public_manifest(self.root)
-            return {"public_hfq": {"label": "公开行情 · 后复权研究快照", "summary": manifest.get("summary", {}),
+            sources.update({"public_hfq": {"label": "公开行情 · 后复权研究快照", "summary": manifest.get("summary", {}),
                     "members": {code: {k: entry[k] for k in ("status", "start", "end", "rows") if k in entry}
-                                for code, entry in manifest["members"].items()}, "limitations": LIMITATIONS}}
+                                for code, entry in manifest["members"].items()}, "limitations": LIMITATIONS}})
         except DataError:
-            return {}
+            pass
+        return sources
+
+    def source_symbols(self, source_id, owner=None):
+        return self.csv_data.get(source_id, owner)[3] if is_csv_source(source_id) else self.symbols
 
     def data_source(self, payload):
         source = payload.get("data_source", "original")
-        if source not in ("original", SOURCE_ID):
-            raise DataError("请选择原始数据或已审计公开快照")
+        if source not in ("original", SOURCE_ID) and not is_csv_source(source):
+            raise DataError("请选择原始数据、公开快照、内置案例或已导入CSV")
         return source
 
     def source_assumptions(self, report, source_id):
+        if is_csv_source(source_id):
+            report["assumptions"]["price_basis"] = report["source"]["provenance"]
+            report["assumptions"]["csv_boundary"] = "按声明的同一价格口径研究；没有自动复权、币种换算、企业行动现金或完整撮合。"
         if source_id == SOURCE_ID:
             report["assumptions"]["price_basis"] = LIMITATIONS
             report["assumptions"]["execution"] += " 公开模式成交价与股数均为复权研究单位，不能映射为真实订单。"
@@ -191,12 +206,12 @@ class Workspace:
                 raise ValueError("工作台配置不完整")
             self.data_source(settings)
             if settings.get("mode", "single") == "portfolio":
-                self.portfolio_spec({key: value for key, value in settings.items() if key not in {"symbol", "mode"}} | {"strategy": document["strategy"]})
+                self.portfolio_spec({key: value for key, value in settings.items() if key not in {"symbol", "mode"}} | {"strategy": document["strategy"]}, owner)
             elif settings.get("mode", "single") != "single" or {"symbols", "portfolio"} & set(settings):
                 raise ValueError("工作台回测模式或组合设置不一致")
             settings = {"periods_per_year": 252, "annual_risk_free_rate": 0.0, **settings}
             validate_metric_parameters(settings["periods_per_year"], settings["annual_risk_free_rate"])
-            if settings["symbol"] not in self.symbols or type(settings["lag"]) is not int or settings["lag"] not in (1, 2):
+            if settings["symbol"] not in self.source_symbols(self.data_source(settings), owner) or type(settings["lag"]) is not int or settings["lag"] not in (1, 2):
                 raise ValueError("标的或滞后配置无效")
             # 复用内核的数值门槛，不要求保存时区间内一定有足够回测数据。
             cost = settings["cost_bps"]
@@ -255,7 +270,8 @@ class Workspace:
                 "bytes": len(body), "saved_locally": True}
 
     def generate(self, prompt, owner=None):
-        result = generate_strategy(prompt)
+        with self.ai_profiles.use(owner):
+            result = generate_strategy(prompt)
         generation_id = uuid.uuid4().hex
         with self.lock:
             self.generations[generation_id] = result
@@ -274,9 +290,11 @@ class Workspace:
         if not {"strategy", "symbol", "cost_bps", "lag"}.issubset(payload):
             raise ValueError("必须明确策略、数据、成本情景和信号滞后")
         code = payload["symbol"]
-        if not isinstance(code, str) or code not in self.symbols:
+        source_id = self.data_source(payload)
+        symbols = self.source_symbols(source_id, owner)
+        if not isinstance(code, str) or code not in symbols:
             raise DataError("请选择当前股票池或历史演示清单中的标的")
-        if not self.symbols[code].get("local_data", True):
+        if not symbols[code].get("local_data", True):
             raise DataError("该成分股的本地行情不可读取，请查看数据说明")
         start, end = payload.get("start"), payload.get("end")
         for boundary in (start, end):
@@ -285,7 +303,7 @@ class Workspace:
         if start and end and start > end:
             raise ValueError("开始日期晚于结束日期")
         source_id = self.data_source(payload)
-        bars, source = self.load_bars(code, start, end, source_id)
+        bars, source = self.load_bars(code, start, end, source_id, owner=owner)
         with self.lock:
             generation_id = payload.get("generation_id")
             generation = self.generations.get(generation_id) if isinstance(generation_id, str) else None
@@ -298,11 +316,11 @@ class Workspace:
         report["source"] = {**source,
                             "rows": len(bars), "start": bars[0].date, "end": bars[-1].date}
         self.source_assumptions(report, source_id)
-        report["stock_pool"] = {"membership": self.symbols[code]["pool"],
-                                "as_of": self.pool["as_of"] if self.symbols[code]["pool"] == "csi300" else None,
-                                "official_url": self.pool["official_url"] if self.symbols[code]["pool"] == "csi300" else None,
-                                "official_sha256": self.pool["official_sha256"] if self.symbols[code]["pool"] == "csi300" else None,
-                                "limitations": self.pool["limitations"] if self.symbols[code]["pool"] == "csi300" else "历史演示标的，非沪深300成员"}
+        report["stock_pool"] = {"membership": symbols[code]["pool"],
+                                "as_of": self.pool["as_of"] if symbols[code]["pool"] == "csi300" else None,
+                                "official_url": self.pool["official_url"] if symbols[code]["pool"] == "csi300" else None,
+                                "official_sha256": self.pool["official_sha256"] if symbols[code]["pool"] == "csi300" else None,
+                                "limitations": self.pool["limitations"] if symbols[code]["pool"] == "csi300" else "所选数据的明确标的集合，非沪深300指数或历史成分池"}
         report["strategy_origin"] = {"type": "manual_or_imported_workspace"}
         if generation and generation.get("status") == "ok":
             report["strategy_origin"] = {"type": "actual_api" if generation["strategy"] == payload["strategy"] else "actual_api_then_edited",
@@ -329,15 +347,16 @@ class Workspace:
                 self.run_owners.pop(expired, None)
         return {"run_id": run_id, "report": report}
 
-    def portfolio_spec(self, payload):
+    def portfolio_spec(self, payload, owner=None):
         allowed = {"strategy", "symbols", "start", "end", "cost_bps", "lag", "portfolio", "periods_per_year", "annual_risk_free_rate", "generation_id", "data_source"}
         required = {"strategy", "symbols", "start", "end", "cost_bps", "lag", "portfolio"}
         if not isinstance(payload, dict) or set(payload) - allowed or not required.issubset(payload):
             raise ValueError("组合请求须明确策略、集合、区间、成本、滞后和仓位规则")
         self.data_source(payload)
+        symbols = self.source_symbols(self.data_source(payload), owner)
         codes = payload["symbols"]
         if (not isinstance(codes, list) or not 1 <= len(codes) <= 300
-                or any(not isinstance(code, str) or code not in self.symbols for code in codes) or len(set(codes)) != len(codes)):
+                or any(not isinstance(code, str) or code not in symbols for code in codes) or len(set(codes)) != len(codes)):
             raise ValueError("请选择1–300个已审计且不重复的股票代码")
         for day in (payload["start"], payload["end"]):
             if not isinstance(day, str) or date.fromisoformat(day).isoformat() != day:
@@ -354,21 +373,24 @@ class Workspace:
             raise ValueError("股票池筛选模式要求否则持仓比例为0；满足条件比例是组合总仓位预算")
         return sorted(codes), compiled
 
-    def portfolio_preflight(self, payload):
-        codes, compiled = self.portfolio_spec(payload)
-        self.ensure_archive()
+    def portfolio_preflight(self, payload, owner=None):
+        codes, compiled = self.portfolio_spec(payload, owner)
         source_id = self.data_source(payload)
+        if not is_csv_source(source_id):
+            self.ensure_archive()
+        symbols = self.source_symbols(source_id, owner)
         public = public_manifest(self.root) if source_id == SOURCE_ID else None
+        csv_info = self.csv_data.public(source_id, owner) if is_csv_source(source_id) else None
         items, calendar, date_sets = [], set(), {}
         for code in codes:
-            item = {"code": code, "name": self.symbols[code]["name"], "eligible": False}
+            item = {"code": code, "name": symbols[code]["name"], "eligible": False}
             try:
-                available = public["members"].get(code, {}) if public else self.symbols[code]["source"]
+                available = csv_info["members"][code] if csv_info else public["members"].get(code, {}) if public else symbols[code]["source"]
                 if public and available.get("status") != "READY":
                     raise DataError("公开数据未通过审计：" + available.get("reason", "未下载"))
                 if payload["start"] < available["start"] or payload["end"] > available["end"]:
                     raise DataError(f"请求区间超出本地覆盖{available['start']}至{available['end']}；不自动缩短区间")
-                bars, source = self.load_bars(code, payload["start"], payload["end"], source_id, validate=False)
+                bars, source = self.load_bars(code, payload["start"], payload["end"], source_id, validate=False, owner=owner)
                 if public and source["manifest_sha256"] != public["snapshot_sha256"]:
                     raise DataError("公开数据集在集合检查期间已更新，请重新检查")
                 dates = {bar.date for bar in bars}
@@ -399,32 +421,38 @@ class Workspace:
         eligible = [item["code"] for item in items if item["eligible"]]
         return {"status": "PASS" if len(eligible) == len(codes) else "BLOCKED", "requested": len(codes),
                 "eligible_symbols": eligible, "calendar_records": len(calendar), "items": items, "data_source": source_id,
-                "snapshot_sha256": public["snapshot_sha256"] if public else self.manifest["archive_sha256"],
+                "snapshot_sha256": csv_info["sha256"] if csv_info else public["snapshot_sha256"] if public else self.manifest["archive_sha256"],
                 "scope": "逐股来源SHA、价格质量、窗口长度及日历覆盖检查，不是收益筛选；不会自动缩减股票集合"}
 
     def portfolio_backtest(self, payload, owner=None):
-        codes, _ = self.portfolio_spec(payload)
-        checked = self.portfolio_preflight(payload)
+        codes, _ = self.portfolio_spec(payload, owner)
+        checked = self.portfolio_preflight(payload, owner)
         if checked["status"] != "PASS":
             first = next(item for item in checked["items"] if not item["eligible"])
             raise DataError(f"股票池检查未通过：{len(codes)-len(checked['eligible_symbols'])}个标的不符合；{first['code']}：{first['reason']}。请查看集合检查，不会自动删股")
         series, sources = {}, []
         source_id = self.data_source(payload)
         for code in codes:
-            bars, source = self.load_bars(code, payload["start"], payload["end"], source_id)
+            bars, source = self.load_bars(code, payload["start"], payload["end"], source_id, owner=owner)
+            if is_csv_source(source_id) and source["dataset_sha256"] != checked["snapshot_sha256"]:
+                raise DataError("CSV快照已变化，请重新检查")
             if source_id == SOURCE_ID and source["manifest_sha256"] != checked["snapshot_sha256"]:
                 raise DataError("公开数据集在检查与执行之间已更新，请重新检查")
             series[code] = bars
-            sources.append({"code": code, "name": self.symbols[code]["name"], **source})
+            sources.append({"code": code, "name": bars[0].name, **source})
         report = run_portfolio(series, payload["strategy"], cost_bps=payload["cost_bps"], execution_lag_bars=payload["lag"],
                                portfolio=payload["portfolio"], periods_per_year=payload.get("periods_per_year", 252),
                                annual_risk_free_rate=payload.get("annual_risk_free_rate", 0.0))
         report["source"] = {"archive": "腾讯公开行情快照" if source_id == SOURCE_ID else self.archive.name,
                             "archive_sha256": self.manifest["archive_sha256"], "data_source": source_id,
                             "members": sources, "start": report["metrics"]["start"], "end": report["metrics"]["end"]}
+        if is_csv_source(source_id):
+            report["source"].update(archive=source["archive"], archive_sha256=source["dataset_sha256"], provenance=source["provenance"])
         self.source_assumptions(report, source_id)
         report["stock_pool"] = {"membership": "explicit_portfolio", "as_of": self.pool["as_of"],
                                 "official_sha256": self.pool["official_sha256"], "limitations": self.pool["limitations"]}
+        if is_csv_source(source_id):
+            report["stock_pool"] = {"membership": "explicit_csv_collection", "as_of": None, "limitations": "用户明确选择的CSV集合，不是沪深300指数或历史成分池"}
         report["preflight"] = checked
         report["strategy_origin"] = {"type": "manual_or_imported_workspace"}
         generation_id = payload.get("generation_id")
@@ -452,7 +480,8 @@ class Workspace:
         if set(payload) - {"run_id", "date", "confirmed"} or payload.get("confirmed") is not True:
             raise ValueError("请确认向已配置AI发送选定指标/积木/账目摘要；不上传原行情包")
         pack = self.research_evidence({k: v for k, v in payload.items() if k != "confirmed"}, owner)
-        result = explain_research(pack)
+        with self.ai_profiles.use(owner):
+            result = explain_research(pack)
         result["research_id"] = self.journal.append("explanation", {"kind": "explanation", "evidence_pack": pack, **result}, owner)
         return result
 
@@ -467,7 +496,7 @@ class Workspace:
         base = self.owned_run(payload["run_id"], owner)
         if base.get("kind") == "portfolio":
             raise ValueError("当前对照实验仅支持单股；组合请明确修改成本/滞后后重新回测，不自动改变集合或参数")
-        bars, source = self.load_bars(base["source"]["member"].removesuffix(".csv"), base["source"]["start"], base["source"]["end"], base["source"].get("source_id", "original"))
+        bars, source = self.load_bars(base["source"]["member"].removesuffix(".csv"), base["source"]["start"], base["source"]["end"], base["source"].get("source_id", "original"), owner=owner)
         if source["member_sha256"] != base["source"]["member_sha256"]:
             raise DataError("实验数据与原回测不一致")
         results = []
@@ -485,7 +514,9 @@ class Workspace:
         document["research_id"] = self.journal.append("experiment", document, owner)
         return document
 
-    def load_bars(self, code, start=None, end=None, source_id="original", validate=True):
+    def load_bars(self, code, start=None, end=None, source_id="original", validate=True, owner=None):
+        if is_csv_source(source_id):
+            return self.csv_data.load(source_id, code, start, end, owner, validate)
         if not isinstance(code, str) or code not in self.symbols:
             raise DataError("标的不在已审计股票池中")
         for boundary in (start, end):
@@ -525,7 +556,7 @@ class Workspace:
         source_id = self.data_source(payload)
         for code in symbols:
             try:
-                panel[code], sources[code] = self.load_bars(code, payload["start"], payload["end"], source_id)
+                panel[code], sources[code] = self.load_bars(code, payload["start"], payload["end"], source_id, owner=owner)
             except ValueError as exc:
                 rejected.append({"symbol": code, "reason": str(exc)})
         # 首版不静默缩减用户确认的研究集合；全部拒绝原因可查询。
@@ -556,7 +587,8 @@ class Workspace:
     def factor_generate(self, payload, owner):
         if set(payload) != {"prompt", "confirmed"} or payload["confirmed"] is not True:
             raise ValueError("请确认调用已配置模型生成一个因子候选")
-        result = generate_factor(payload["prompt"])
+        with self.ai_profiles.use(owner):
+            result = generate_factor(payload["prompt"])
         result["research_id"] = self.journal.append("factor_candidate", {"kind": "factor_candidate", "question": payload["prompt"], **result}, owner)
         return result
 
@@ -569,7 +601,7 @@ class Workspace:
         with self.lock:
             if document.get("sample_hash"):
                 request = document["request"]
-                hashes = {code: self.load_bars(code, request["start"], request["end"], self.data_source(request))[1]["member_sha256"]
+                hashes = {code: self.load_bars(code, request["start"], request["end"], self.data_source(request), owner=owner)[1]["member_sha256"]
                           for code in request["symbols"]}
                 if document_hash(hashes) != document["sample_hash"]:
                     raise DataError("冻结验证使用的数据已变化，不能认领同一次独立测试")
@@ -609,7 +641,8 @@ class Workspace:
                  {"id": "F-train", "label": "训练评价", "value": document["train"]},
                  {"id": "F-validation", "label": "验证评价", "value": document["validation"]},
                  {"id": "F-risks", "label": "风险证据", "value": document["risks"]}]
-        result = explain_research({"facts": facts, "scope": document["statistics_scope"]})
+        with self.ai_profiles.use(owner):
+            result = explain_research({"facts": facts, "scope": document["statistics_scope"]})
         result["research_id"] = self.journal.append("factor_explanation", {"kind": "factor_explanation", "facts": facts, **result}, owner)
         return result
 
@@ -678,18 +711,31 @@ def make_handler(workspace):
                 return self.json({"error": "仅允许本机访问"}, 403)
             static = {"/": ("index.html", "text/html; charset=utf-8"), "/app.js": ("app.js", "text/javascript; charset=utf-8"),
                       "/experience.js": ("experience.js", "text/javascript; charset=utf-8"),
+                      "/ai-settings.js": ("ai-settings.js", "text/javascript; charset=utf-8"),
+                      "/data-import.js": ("data-import.js", "text/javascript; charset=utf-8"),
                       "/research.js": ("research.js", "text/javascript; charset=utf-8"),
                       "/styles.css": ("styles.css", "text/css; charset=utf-8"),
                       "/portfolio.js": ("portfolio.js", "text/javascript; charset=utf-8")}
             if self.path in static:
                 filename, content_type = static[self.path]
                 return self.respond(200, (workspace.root / "web" / filename).read_bytes(), content_type)
+            sample_files = {"/api/data/sample.csv": ("data/sample/market.csv", "text/csv; charset=utf-8", "finblocks_sample.csv"),
+                            "/api/data/sample-case.json": ("examples/sample_case.json", "application/json; charset=utf-8", "sample_case.json")}
+            if self.path in sample_files:
+                relative, content_type, filename = sample_files[self.path]
+                return self.respond(200, (workspace.root / relative).read_bytes(), content_type, filename=filename)
             if self.path == "/api/bootstrap":
                 user = self.current_user()
                 stale = workspace.accounts.cookie_token(self.headers.get("Cookie", "")) and user is None
                 return self.respond(200, encode_json(workspace.bootstrap(user)), cookie=self.cookie() if stale else None)
             if self.path == "/api/auth/session":
                 return self.json({"user": self.current_user()})
+            if self.path == "/api/ai/config":
+                user = self.current_user()
+                if user is None:
+                    return self.json({"error": "请先登录后配置个人AI"}, 401)
+                return self.json({"profile": workspace.ai_profiles.public(user["id"]), "providers": PRESETS,
+                                  "remember_supported": os.name == "nt"})
             if workspace.policy and self.current_user() is None:
                 return self.json({"error": "请先登录组员账号"}, 401)
             exported = re.fullmatch(r"/api/file/([0-9a-f]{32})/(strategy.json|report.json|records.csv|equity.png|research.json)", self.path)
@@ -738,7 +784,7 @@ def make_handler(workspace):
                 return self.json({"error": "登录会话已过期，请重新登录或刷新后使用游客模式"}, 401)
             try:
                 length = int(self.headers.get("Content-Length", "0"))
-                limit = 1048576 if self.path == "/api/export-artifact" else 65536
+                limit = 3000000 if self.path == "/api/data/import-csv" else 1048576 if self.path == "/api/export-artifact" else 65536
                 if not 0 < length <= limit:
                     self.discard_body()
                     raise ValueError("请求为空或超过项目大小上限")
@@ -755,21 +801,38 @@ def make_handler(workspace):
                     else:
                         user, session = workspace.accounts.login(payload, self.client_address[0])
                     # 登录切换时废弃当前会话，不延续旧身份。
+                    if owner:
+                        workspace.ai_profiles.forget_session(owner)
+                    workspace.ai_profiles.forget_session(user["id"])
                     workspace.accounts.logout(self.headers.get("Cookie", ""))
                     return self.respond(200, encode_json({"user": user}), cookie=self.cookie(session))
                 if self.path == "/api/auth/logout":
                     if payload:
                         raise ValueError("退出请求不接受额外字段")
+                    workspace.ai_profiles.forget_session(owner)
                     workspace.accounts.logout(self.headers.get("Cookie", ""))
                     return self.respond(200, encode_json({"user": None}), cookie=self.cookie())
+                if self.path in ("/api/ai/config", "/api/ai/test", "/api/ai/delete"):
+                    if owner is None:
+                        raise AuthError("请先登录后配置个人AI", 401)
+                    if self.path == "/api/ai/config":
+                        return self.json({"profile": workspace.ai_profiles.save(owner, payload)})
+                    if self.path == "/api/ai/test":
+                        return self.json(test_connection(workspace.ai_profiles.candidate(owner, payload)))
+                    if payload:
+                        raise ValueError("删除配置请求不接受额外字段")
+                    return self.json({"profile": workspace.ai_profiles.delete(owner)})
                 if self.path == "/api/validate":
                     return self.json(workspace.validate(payload.get("strategy")))
+                if self.path == "/api/data/import-csv":
+                    result = workspace.csv_data.import_data(payload, owner)
+                    return self.json(result)
                 if self.path == "/api/generate":
                     return self.json(workspace.generate(payload.get("prompt"), owner))
                 if self.path == "/api/backtest":
                     return self.json(workspace.backtest(payload, owner))
                 if self.path == "/api/portfolio/preflight":
-                    return self.json(workspace.portfolio_preflight(payload))
+                    return self.json(workspace.portfolio_preflight(payload, owner))
                 if self.path == "/api/portfolio/backtest":
                     return self.json(workspace.portfolio_backtest(payload, owner))
                 if self.path == "/api/research/audit":

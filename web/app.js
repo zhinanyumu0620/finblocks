@@ -27,20 +27,30 @@ async function api(path, body, extraHeaders={}) {
 
 function config() {
   return {symbol:isPortfolio()?portfolioCodes()[0]||$("symbol").value:$("symbol").value,start:$("start").value || null,end:$("end").value || null,cost_bps:$("cost").value === "" ? null : Number($("cost").value),lag:Number($("lag").value),...(isPortfolio()?{mode:"portfolio",symbols:portfolioCodes(),portfolio:portfolioOptions()}:{}),
-    ...($("data-source")?.value==="public_hfq"?{data_source:"public_hfq"}:{}),periods_per_year:$("periods").value === "" ? null : Number($("periods").value),annual_risk_free_rate:$("risk-free").value === "" ? null : Number($("risk-free").value)/100};
+    ...($("data-source")?.value&&$("data-source").value!=="original"?{data_source:$("data-source").value}:{}),periods_per_year:$("periods").value === "" ? null : Number($("periods").value),annual_risk_free_rate:$("risk-free").value === "" ? null : Number($("risk-free").value)/100};
 }
 
 function updateDataSourceInfo(){
+  const source=$("data-source").value;
+  if(isCSVSource(source)){
+    const info=state.bootstrap.data_sources?.[source],p=info?.provenance;
+    $("data-source-info").textContent=`${info?.label||"CSV未就绪"} · ${info?.summary.rows||0}条记录。${p?.source_notice||""}；价格：${p?.price_basis||"未确认"}；成交量：${p?.volume_unit||"未确认"}；币种：${p?.currency||"未确认"}。${p?.verification||""}`;return;
+  }
   const info=state.bootstrap.data_sources?.public_hfq;
   if($("data-source-info"))$("data-source-info").textContent=$("data-source").value==="public_hfq"?`公开快照通过 ${info?.summary.ready||0} 股；价格为复权研究单位，部分标的回退day并单独核验。成交量已换算为股，市值留空。各股覆盖不同，请检查集合；无可用数据时阻断，不能当作实盘订单价格。`:"原始ZIP保持不变；除权参考价断点与缺失值继续严格检查。";
 }
 
-function selectedSymbol(){return state.bootstrap.symbols.find(s=>s.code===$("symbol").value);}
+function isCSVSource(source){return source==="sample"||/^csv_[0-9a-f]{32}$/.test(source||"");}
+function availableSymbols(source=$("data-source")?.value||"original"){
+  if(!isCSVSource(source))return state.bootstrap.symbols;
+  return Object.entries(state.bootstrap.data_sources?.[source]?.members||{}).map(([code,item])=>({code,...item,pool:"custom",local_data:item.status==="READY",quality:{full_history_passed:true}}));
+}
+function selectedSymbol(){return availableSymbols().find(s=>s.code===$("symbol").value);}
 function canRunSelected(){if(isPortfolio())return !portfolioState.busy&&portfolioState.check?.status==="PASS";const symbol=selectedSymbol();return !!symbol&&symbol.local_data!==false;}
 
 function filteredSymbols(){
   const pool=$("stock-pool").value||"demo",query=$("symbol-search").value.trim().toLowerCase();
-  return state.bootstrap.symbols.filter(s=>(s.pool||"demo")===pool&&(!query||(s.name+" "+s.code).toLowerCase().includes(query)));
+  return availableSymbols().filter(s=>(s.pool||"demo")===pool&&(!query||(s.name+" "+s.code).toLowerCase().includes(query)));
 }
 
 function renderSymbolOptions(preferred=$("symbol").value,chooseFirst=false){
@@ -56,6 +66,8 @@ function updateSymbolInfo(){
   const symbol=selectedSymbol(),pool=state.bootstrap.stock_pool;
   $("pool-info").textContent=$("stock-pool").value==="csi300"&&pool?`中证指数官方名单 · ${pool.as_of} · ${pool.summary.official_members} 个成员。当前名单回看历史，非历史逐日成分池；此处每次检验一只股票。`:"历史演示标的，用于复核已有策略；不计入沪深300成员。";
   if(isPortfolio())updatePortfolioMode();
+  if(isCSVSource($("data-source").value)){$("pool-info").textContent="所选CSV的明确标的集合，非沪深300指数或历史成分池。";$("source-count").textContent=`${state.bootstrap.data_sources[$("data-source").value]?.label||"CSV"} · ${availableSymbols().length} 个标的`;}
+  $("financial-btn").disabled=isCSVSource($("data-source").value);
   $("checked-range-btn").hidden=true;
   if(!symbol){$("symbol-quality").textContent="请选择一只股票，再设置历史区间。";return;}
   if($("data-source")?.value==="public_hfq"){
@@ -200,12 +212,12 @@ async function applyWorkspace(document, imported=true) {
   if(sequence!==state.importSequence||rev!==state.revision)throw new Error("导入校验期间策略或配置已改变，本次导入未应用，请重新导入");
   if(settings){settings={periods_per_year:252,annual_risk_free_rate:0,...settings};if(!Number.isInteger(settings.periods_per_year)||settings.periods_per_year<1||settings.periods_per_year>366||typeof settings.annual_risk_free_rate!=="number"||!Number.isFinite(settings.annual_risk_free_rate)||settings.annual_risk_free_rate<=-1||settings.annual_risk_free_rate>1)throw new Error("导入的年化周期或无风险利率无效");}
   if(settings?.mode==="portfolio")validPortfolioSettings(settings);else if(settings&&(settings.mode&&settings.mode!=="single"||settings.symbols||settings.portfolio))throw new Error("导入回测模式或组合设置不一致");
-  if(settings?.data_source&&!['original','public_hfq'].includes(settings.data_source))throw new Error("导入数据源不受支持");
-  if(settings?.data_source==="public_hfq"&&!state.bootstrap.data_sources?.public_hfq)throw new Error("该公开快照尚未就绪");
-  if(settings){if(!state.bootstrap.symbols.some(s=>s.code===settings.symbol))throw new Error("导入的标的未在当前股票池中");if(![1,2].includes(settings.lag))throw new Error("界面仅支持滞后1或2条记录");if(typeof settings.cost_bps!=="number"||!Number.isFinite(settings.cost_bps)||settings.cost_bps<0||settings.cost_bps>=10000)throw new Error("导入的成本配置无效");for(const day of [settings.start,settings.end])if(day!==null&&(!/^\d{4}-\d{2}-\d{2}$/.test(day)||Number.isNaN(Date.parse(day))||new Date(day).toISOString().slice(0,10)!==day))throw new Error("导入的日期格式无效");if(settings.start&&settings.end&&settings.start>settings.end)throw new Error("导入的开始日期晚于结束日期");}
+  if(settings?.data_source&&!['original','public_hfq'].includes(settings.data_source)&&!isCSVSource(settings.data_source))throw new Error("导入数据源不受支持");
+  if(settings?.data_source&&settings.data_source!=="original"&&!state.bootstrap.data_sources?.[settings.data_source])throw new Error("该数据源尚未就绪；CSV须由当前账号先导入");
+  if(settings){if(!availableSymbols(settings.data_source||"original").some(s=>s.code===settings.symbol))throw new Error("导入的标的未在当前股票池中");if(![1,2].includes(settings.lag))throw new Error("界面仅支持滞后1或2条记录");if(typeof settings.cost_bps!=="number"||!Number.isFinite(settings.cost_bps)||settings.cost_bps<0||settings.cost_bps>=10000)throw new Error("导入的成本配置无效");for(const day of [settings.start,settings.end])if(day!==null&&(!/^\d{4}-\d{2}-\d{2}$/.test(day)||Number.isNaN(Date.parse(day))||new Date(day).toISOString().slice(0,10)!==day))throw new Error("导入的日期格式无效");if(settings.start&&settings.end&&settings.start>settings.end)throw new Error("导入的开始日期晚于结束日期");}
   if(state.strategy)remember();state.strategy=clone(strategy);state.generationId=null;defaultPositions();
   if(positions)for(const node of state.strategy.nodes){const p=positions[node.id];if(p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&p.x>=0&&p.x<=3000&&p.y>=0&&p.y<=5000)state.positions[node.id]={x:p.x,y:p.y};}
-  if(settings){$("stock-pool").value=state.bootstrap.symbols.find(s=>s.code===settings.symbol).pool||"demo";$("symbol-search").value="";renderSymbolOptions(settings.symbol);$("start").value=settings.start||"";$("end").value=settings.end||"";$("cost").value=settings.cost_bps;$("lag").value=settings.lag;$("periods").value=settings.periods_per_year;$("risk-free").value=settings.annual_risk_free_rate*100;updateSymbolInfo();$("financial-table").hidden=true;$("financial-summary").textContent="策略已恢复，请重新查看对应财报。";}
+  if(settings){$("data-source").value=settings.data_source||"original";$("stock-pool").value=availableSymbols().find(s=>s.code===settings.symbol).pool||"demo";$("symbol-search").value="";renderSymbolOptions(settings.symbol);$("start").value=settings.start||"";$("end").value=settings.end||"";$("cost").value=settings.cost_bps;$("lag").value=settings.lag;$("periods").value=settings.periods_per_year;$("risk-free").value=settings.annual_risk_free_rate*100;updateSymbolInfo();$("financial-table").hidden=true;$("financial-summary").textContent="策略已恢复，请重新查看对应财报。";}
   if(settings){$("data-source").value=settings.data_source||"original";applyPortfolioSettings(settings);updateSymbolInfo();}
   changed();if(imported)notice("策略已导入并校验通过。导入文件不被自动标为本次真实AI调用。"+(isPortfolio()?"请重新检查股票池数据。":""));
 }
@@ -232,7 +244,7 @@ async function loadFinancials(){const symbol=$("symbol").value;$("financial-btn"
   try{const report=await api("/api/financials",{symbol});if(symbol!==$("symbol").value)return;$("financial-summary").textContent=`${symbol} · ${report.rows} 条原始发布记录，展示最近 12 条（保留修订版本）。${report.limitations} 来源：${report.source.member}`;
     $("financial-table").innerHTML=`<table><thead><tr><th>报告期（原值）</th><th>发布日期</th>${report.fields.map(f=>`<th>${escapeHtml(f)}</th>`).join("")}</tr></thead><tbody>${report.reports.slice(-12).reverse().map(row=>`<tr><td>${escapeHtml(row.report_date)}</td><td>${escapeHtml(row.publish_date)}</td>${report.fields.map(f=>`<td>${escapeHtml(row.values[f]||"—")}</td>`).join("")}</tr>`).join("")}</tbody></table>`;$("financial-table").hidden=false;
   }catch(error){$("financial-summary").textContent="财报读取未完成："+error.message;}finally{$("financial-btn").disabled=false;}}
-function renderResults(){const r=state.result,m=r.metrics;const symbol=r.kind==="portfolio"?{name:`${r.symbols.length}股共享现金组合`}:state.bootstrap.symbols.find(s=>s.code===$("symbol").value);
+function renderResults(){const r=state.result,m=r.metrics;const symbol=r.kind==="portfolio"?{name:`${r.symbols.length}股共享现金组合`}:selectedSymbol();
   for(const [id,value] of [["metric-return",m.total_return],["metric-benchmark",m.buy_hold_return],["metric-drawdown",m.max_drawdown]]){$(id).textContent=percent(value);$(id).className=value<0?"negative":"positive";}
   $("metric-trades").textContent=m.trade_records.toLocaleString();$("result-subtitle").textContent=`${symbol.name} · ${m.start} — ${m.end} · ${m.rows.toLocaleString()} 条真实记录 · 成本 ${r.assumptions.cost_bps} 基点 · 信号滞后 ${r.assumptions.execution_lag_bars} 条记录`;
   for(const [id,key,ratio] of [["metric-sharpe","sharpe_ratio",true],["metric-benchmark-sharpe","buy_hold_sharpe_ratio",true],["metric-volatility","annualized_volatility",false],["metric-annual-return","annualized_return",false]]){const value=m[key];$(id).textContent=Number.isFinite(value)?ratio?value.toFixed(3):percent(value):"—";$(id).title=m[key==="sharpe_ratio"?"sharpe_unavailable_reason":key==="buy_hold_sharpe_ratio"?"buy_hold_sharpe_unavailable_reason":key+"_unavailable_reason"]||"";$(id).className=Number.isFinite(value)?value<0?"negative":"positive":"";}
@@ -256,7 +268,7 @@ function renderLedger(){const rows=ledgerRows(),size=12,total=Math.max(1,Math.ce
 }
 
 function drawChart(hoverIndex=null){const canvas=$("chart"),rect=canvas.getBoundingClientRect(),ratio=window.devicePixelRatio||1;canvas.width=rect.width*ratio;canvas.height=rect.height*ratio;const ctx=canvas.getContext("2d");ctx.scale(ratio,ratio);ctx.fillStyle="#fff";ctx.fillRect(0,0,rect.width,rect.height);state.chartGeometry=null;if(!state.result||!state.result.records.length||rect.width<90)return;
-  ctx.font='11px "Segoe UI","Microsoft YaHei"';ctx.fillStyle="#087969";ctx.fillText("FinBlocks · 归一化净值",49,16);ctx.fillStyle="#526f82";if(rect.width>450)ctx.fillText(`成本 ${state.result.assumptions.cost_bps} 基点 · 滞后 ${state.result.assumptions.execution_lag_bars} 条`,Math.max(260,rect.width-205),16);
+  ctx.font='11px "Segoe UI","Microsoft YaHei"';ctx.fillStyle="#087969";ctx.fillText("智策工坊 · 归一化净值",49,16);ctx.fillStyle="#526f82";if(rect.width>450)ctx.fillText(`成本 ${state.result.assumptions.cost_bps} 基点 · 滞后 ${state.result.assumptions.execution_lag_bars} 条`,Math.max(260,rect.width-205),16);
   ctx.font='10px "Segoe UI","Microsoft YaHei"';ctx.fillText(state.result.kind==="portfolio"?(rect.width<550?"组合策略（实线） · 等权基准（虚线）":"组合策略（实线） · 股票池等权买入持有（虚线）"):"当前策略（实线） · 买入持有（虚线）",49,32);
   const records=state.result.records,w=rect.width,h=rect.height,pad={left:49,right:16,top:41,bottom:28};let min=Infinity,max=-Infinity;for(const r of records){min=Math.min(min,r.equity,r.buy_hold_equity);max=Math.max(max,r.equity,r.buy_hold_equity);}const range=Math.max(max-min,.1);min=Math.max(0,min-range*.08);max+=range*.08;
   const x=i=>pad.left+i/Math.max(1,records.length-1)*(w-pad.left-pad.right),y=v=>pad.top+(max-v)/(max-min)*(h-pad.top-pad.bottom);
@@ -282,7 +294,7 @@ function bind(){document.querySelectorAll("[data-add]").forEach(button=>{button.
   $("strategy-name").addEventListener("input",()=>{remember();state.strategy.name=$("strategy-name").value;changed(false);});
   $("signal").addEventListener("change",()=>{remember();state.strategy.signal=$("signal").value;changed();});
   for(const [id,key] of [["true-weight","when_true"],["false-weight","when_false"]])$(id).addEventListener("input",()=>{remember();state.strategy.allocation[key]=$(id).value===""?null:Number($(id).value);changed(false);});
-  $("data-source").addEventListener("change",()=>{updateSymbolInfo();invalidate();validateCurrent();notice("数据源已切换，保留当前日期；请检查覆盖并重新运行。因子实验也将使用该数据源。");});
+  $("data-source").addEventListener("change",()=>{selectDataCollection();updateSymbolInfo();invalidate();validateCurrent();notice("数据源已切换，日期设为首个标的的覆盖区间；请检查覆盖并重新运行。因子实验也将使用该数据源。");});
   for(const id of ["start","end","cost","lag","periods","risk-free"])for(const event of ["input","change"])$(id).addEventListener(event,()=>{updateSymbolInfo();invalidate();validateCurrent();});
   $("symbol").addEventListener("change",()=>changeSymbol());
   $("stock-pool").addEventListener("change",()=>{$("symbol-search").value="";renderSymbolOptions("",true);changeSymbol();});
@@ -305,9 +317,9 @@ function bind(){document.querySelectorAll("[data-add]").forEach(button=>{button.
 }
 
 async function init(){try{state.bootstrap=await api("/api/bootstrap");state.strategy=clone(state.bootstrap.default_strategy);$("source-count").textContent=`沪深300 · ${state.bootstrap.stock_pool.summary.official_members} 个成员 · ${state.bootstrap.stock_pool.as_of}`;$("ai-status").textContent=state.bootstrap.ai_configured?"AI 密钥已配置 · 尚未调用":"AI 未配置 · 可人工构建";$("generate-btn").disabled=!state.bootstrap.ai_configured;
-  document.querySelector('#data-source option[value="public_hfq"]').disabled=!state.bootstrap.data_sources?.public_hfq;
-  $("stock-pool").value="csi300";renderSymbolOptions("",true);const first=selectedSymbol();$("start").value=first?.start||"";$("end").value=first?.end||"";updateSymbolInfo();$("cost").value=state.bootstrap.defaults.cost_bps;$("lag").value=state.bootstrap.defaults.lag;$("periods").value=state.bootstrap.defaults.periods_per_year;$("risk-free").value=state.bootstrap.defaults.annual_risk_free_rate*100;renderFundamentals();defaultPositions();bind();renderGraph();await validateCurrent();
+  $("data-source").value=state.bootstrap.default_data_source||"original";renderDataSourceOptions();
+  $("stock-pool").value=isCSVSource($("data-source").value)?"custom":"csi300";renderSymbolOptions("",true);const first=selectedSymbol();$("start").value=first?.start||"";$("end").value=first?.end||"";updateSymbolInfo();$("cost").value=state.bootstrap.defaults.cost_bps;$("lag").value=state.bootstrap.defaults.lag;$("periods").value=state.bootstrap.defaults.periods_per_year;$("risk-free").value=state.bootstrap.defaults.annual_risk_free_rate*100;renderFundamentals();defaultPositions();bind();renderGraph();await validateCurrent();
   const stored=localStorage.getItem(workspaceStorageKey());if(stored){try{await applyWorkspace(JSON.parse(stored),false);notice("已恢复上次保存的本机策略；请按当前配置重新运行。");}catch{notice("本机保存的旧策略不适用于当前数据，请重新导入或构建。",true);}}
-  drawChart();installExperience();installPortfolio();if(typeof installResearch==="function")installResearch();
+  drawChart();installExperience();installPortfolio();installDataImport();if(typeof installResearch==="function")installResearch();
 }catch(error){notice("工作台初始化失败："+error.message+"。请检查本机服务和审计清单。",true);}}
 init();

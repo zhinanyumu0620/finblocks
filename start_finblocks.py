@@ -13,7 +13,7 @@ def main():
         return 2
     from finblocks.web import Workspace, make_handler
     from finblocks.data import DataError
-    parser = argparse.ArgumentParser(description="启动 FinBlocks 组员工作台")
+    parser = argparse.ArgumentParser(description="启动智策工坊组员工作台")
     parser.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
     parser.add_argument("--port", type=int, help="指定本机端口；未指定时优先8765，否则使用空闲端口")
     args = parser.parse_args()
@@ -33,7 +33,7 @@ def main():
             url = f"http://127.0.0.1:{server.server_port}/"
             print("FINBLOCKS_WORKBENCH: " + url, flush=True)
             if not workspace.archive.is_file():
-                print("尚未导入行情数据：可以浏览、编辑策略和使用本机账号；回测请先阅读 TEAM_README.md。", flush=True)
+                print("未导入原始行情ZIP：可载入随包真实案例，或从页面导入自己的CSV；详见 TEAM_README.md。", flush=True)
             print("关闭此窗口或按 Ctrl+C 停止服务。", flush=True)
             if not args.no_browser:
                 webbrowser.open(url)

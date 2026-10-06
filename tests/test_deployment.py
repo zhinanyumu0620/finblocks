@@ -14,6 +14,7 @@ import unittest
 from finblocks.deployment import OnlinePolicy, DataUploads
 from finblocks.data import DataError
 from finblocks.web import Workspace, make_handler
+from serve_online import prepare_workspace
 
 
 class OnlineTests(unittest.TestCase):
@@ -83,6 +84,32 @@ class OnlineTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertIn("尚未导入财务数据", body["error"])
         self.assertEqual(self.request("/data/data_upload_spec.json", extra=cookie)[0], 404)
+
+    def test_online_upgrade_keeps_user_files_and_runs_real_sample(self):
+        cookie = self.register()
+        personal = self.root / "private/upgrade_marker.txt"
+        personal.write_text("隔离验收记录", encoding="utf-8")
+        original = Path(__file__).resolve().parents[1]
+        prepare_workspace(original, self.root)
+        self.assertEqual(personal.read_text(encoding="utf-8"), "隔离验收记录")
+        status, bootstrap, _ = self.request("/api/bootstrap", extra=cookie)
+        self.assertEqual(status, 200)
+        self.assertEqual(bootstrap["default_data_source"], "sample")
+        self.assertEqual(bootstrap["data_sources"]["sample"]["summary"]["rows"], 750)
+        status, case, _ = self.request("/api/data/sample-case.json", extra=cookie)
+        self.assertEqual(status, 200)
+        payload = {"strategy": case["strategy"], **case["config"]}
+        payload.pop("mode")
+        payload.pop("symbol")
+        status, check, _ = self.request("/api/portfolio/preflight", payload, cookie)
+        self.assertEqual(status, 200)
+        self.assertEqual(check["status"], "PASS")
+        self.assertEqual(check["calendar_records"], 250)
+        status, result, _ = self.request("/api/portfolio/backtest", payload, cookie)
+        self.assertEqual(status, 200)
+        self.assertEqual(len(result["report"]["source"]["members"]), 3)
+        self.assertAlmostEqual(result["report"]["metrics"]["total_return"], 0.01502849679976248)
+        self.assertAlmostEqual(result["report"]["metrics"]["sharpe_ratio"], 0.200809572475053)
 
     def test_admin_role_not_given_to_group_members(self):
         cookie = self.register()

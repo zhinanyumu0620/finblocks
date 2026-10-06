@@ -26,6 +26,7 @@ function harness() {
   };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(root, "web/experience.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "web/ai-settings.js"), "utf8"), context);
   vm.runInContext(fs.readFileSync(path.join(root,"web/portfolio.js"),"utf8"),context);
   const source = fs.readFileSync(path.join(root, "web/app.js"), "utf8");
   vm.runInContext(source.replace(/\ninit\(\);\s*$/, ""), context);
@@ -42,6 +43,196 @@ function harness() {
   context.notice = message => notices.push(message);
   return {context, state, storage, notices};
 }
+
+function csvHarness(){
+  const h=harness(),{context,state}=h;
+  vm.runInContext(fs.readFileSync(path.join(root,"web/data-import.js"),"utf8"),context);
+  context.btoa=value=>Buffer.from(value,"binary").toString("base64");
+  state.bootstrap.data_sources={sample:{label:"真实案例",members:{AAPL:{name:"AAPL",status:"READY",start:"2012-01-03",end:"2012-12-31",rows:250}},summary:{ready:1,rows:250}}};
+  for(const [id,value] of Object.entries({"csv-label":"TEST_DOUBLE","csv-source":"构造边界测试","csv-basis":"unknown","csv-currency":"TEST"}))context.document.getElementById(id).value=value;
+  context.document.getElementById("csv-confirm").checked=true;
+  return h;
+}
+
+test("真实案例使用随包策略并配置三股横截面协议，等待用户确认",async()=>{
+  const {context}=csvHarness();
+  const example=JSON.parse(fs.readFileSync(path.join(root,"examples/sample_case.json"),"utf8"));let applied;
+  context.api=async path=>{assert.equal(path,"/api/data/sample-case.json");return example;};
+  context.applyWorkspace=async document=>{applied=document;};
+  context.document.getElementById("factor-protocol-confirm").checked=true;
+  await context.loadSampleCase();assert.equal(applied,example);
+  assert.equal(context.document.getElementById("factor-mode").value,"cross_section");
+  assert.equal(context.document.getElementById("factor-symbols").value,"AAPL, IBM, MSFT");
+  assert.equal(context.document.getElementById("factor-protocol-confirm").checked,false);
+});
+
+test("案例下载期间切换账号不覆盖当前策略",async()=>{
+  const {context}=csvHarness(),pending=deferred();let applied=0;
+  context.api=()=>pending.promise;context.applyWorkspace=async()=>{applied++;};
+  const task=context.loadSampleCase();vm.runInContext("identityRevision++",context);
+  pending.resolve({});await task;assert.equal(applied,0);
+});
+
+test("CSV来源进入回测和因子协议，股票选择只取当前数据集",()=>{
+  const {context,state}=csvHarness();
+  context.document.getElementById("data-source").value="sample";
+  context.document.getElementById("stock-pool").value="custom";
+  assert.equal(context.config().data_source,"sample");
+  assert.deepEqual(Array.from(context.filteredSymbols(),s=>s.code),["AAPL"]);
+  vm.runInContext(fs.readFileSync(path.join(root,"web/research.js"),"utf8"),context);
+  context.document.getElementById("factor-protocol-confirm").checked=true;
+  context.document.getElementById("factor-start").value="2012-01-03";
+  context.document.getElementById("factor-end").value="2012-12-31";
+  assert.equal(context.factorRequest().data_source,"sample");
+  context.document.getElementById("data-source").value="csv_"+"a".repeat(32);
+  assert.equal(context.availableSymbols().length,0);
+  assert.equal(state.bootstrap.symbols.length,1);
+});
+
+test("账号切换后迟到的数据源清单不覆盖当前账号",async()=>{
+  const {context,state}=csvHarness(),pending=deferred();
+  context.api=()=>pending.promise;
+  const old=state.bootstrap,task=context.refreshDataSources();
+  vm.runInContext("identityRevision++",context);
+  pending.resolve({data_sources:{sample:{label:"OLD_ACCOUNT"}}});
+  assert.equal(await task,false);assert.equal(state.bootstrap,old);
+});
+
+test("CSV文件读取期间切换账号不发送导入请求",async()=>{
+  const {context}=csvHarness(),pending=deferred();let requests=0;
+  context.document.getElementById("csv-file").files=[{size:10,arrayBuffer:()=>pending.promise}];
+  context.api=async()=>{requests++;};
+  const task=context.importCSV({preventDefault(){}});
+  vm.runInContext("identityRevision++",context);
+  pending.resolve(new Uint8Array([65,66]).buffer);
+  await task;assert.equal(requests,0);
+});
+
+test("CSV上传期间切换账号不应用旧账号返回的数据",async()=>{
+  const {context,state}=csvHarness(),pending=deferred();
+  context.document.getElementById("csv-file").files=[{size:2,arrayBuffer:async()=>new Uint8Array([65,66]).buffer}];
+  context.api=()=>pending.promise;
+  const task=context.importCSV({preventDefault(){}});
+  await new Promise(resolve=>setImmediate(resolve));
+  vm.runInContext("identityRevision++",context);
+  const source="csv_"+"a".repeat(32);pending.resolve({source_id:source,source:{label:"OLD_ACCOUNT"}});
+  await task;assert.equal(state.bootstrap.data_sources[source],undefined);
+});
+
+test("导入不存在的CSV工作台时保留原策略和当前源",async()=>{
+  const {context,state}=csvHarness(),old=state.strategy;
+  context.api=async()=>({valid:true});
+  const document={format:"finblocks-workspace",version:1,strategy:{...old,name:"UNAVAILABLE"},config:{data_source:"csv_"+"b".repeat(32),symbol:"AAPL",lag:1,cost_bps:10,start:"2012-01-03",end:"2012-12-31"}};
+  await assert.rejects(context.applyWorkspace(document));
+  assert.equal(state.strategy,old);assert.equal(context.document.getElementById("data-source").value,"");
+});
+
+test("高夏普短样本仍提示年化限制，策略与基准分别解读", () => {
+  const {context,state}=harness();
+  state.result={metrics:{sharpe_ratio:2.3,buy_hold_sharpe_ratio:0.6,return_periods:27},assumptions:{periods_per_year:252}};
+  const strategy=context.currentTermReading("sharpe"),baseline=context.currentTermReading("benchmarksharpe");
+  assert.match(strategy,/策略夏普为2\.300/);assert.match(strategy,/不能单凭它判定策略优秀/);
+  assert.match(strategy,/仅有27个收益周期/);assert.match(strategy,/基准夏普为0\.600/);
+  assert.match(baseline,/买入并持有基准夏普为0\.600/);assert.doesNotMatch(baseline,/为2\.300/);
+  state.result.assumptions.periods_per_year=12;
+  assert.doesNotMatch(context.currentTermReading("sharpe"),/仅有27个收益周期/);
+});
+
+test("夏普无定义、为零及为负时不暗示优秀或按绝对值排序", () => {
+  const {context,state}=harness();
+  state.result={metrics:{sharpe_ratio:null,sharpe_unavailable_reason:"收益波动为零",return_periods:394},assumptions:{periods_per_year:252}};
+  assert.match(context.currentTermReading("sharpe"),/没有定义：收益波动为零/);
+  assert.doesNotMatch(context.currentTermReading("sharpe"),/达到1/);
+  state.result.metrics.sharpe_ratio=0;
+  assert.match(context.currentTermReading("sharpe"),/超额收益为零/);
+  state.result.metrics.sharpe_ratio=-1.5;state.result.metrics.buy_hold_sharpe_ratio=-2;
+  assert.match(context.currentTermReading("sharpe"),/低于无风险/);
+  assert.match(context.currentTermReading("sharpe"),/不能照搬正夏普/);
+  assert.doesNotMatch(context.currentTermReading("sharpe"),/策略较高/);
+});
+
+test("组合少亏仍说明亏损且比较差值采用百分点", () => {
+  const {context,state}=harness();
+  state.result={kind:"portfolio",metrics:{total_return:-0.05,buy_hold_return:-0.12}};
+  const text=context.currentTermReading("benchmark");
+  assert.match(text,/超过7\.00个百分点/);assert.match(text,/仍然亏损/);
+  assert.match(text,/集合初始等权买入持有，并非沪深300指数/);
+  state.result={metrics:{total_return:0.1,buy_hold_return:0.15}};
+  assert.match(context.currentTermReading("totalreturn"),/落后5\.00个百分点/);
+});
+
+test("负回撤转换为损失幅度，零调仓不被判定为有效策略", () => {
+  const {context,state}=harness();
+  state.result={metrics:{max_drawdown:-0.2,trade_records:0}};
+  assert.match(context.currentTermReading("drawdown"),/最大回撤-20\.00%/);
+  assert.match(context.currentTermReading("drawdown"),/从峰值下降20\.00%/);
+  assert.match(context.currentTermReading("trades"),/没有交易不能证明规则有效/);
+  state.result.metrics.max_drawdown=0;
+  assert.match(context.currentTermReading("drawdown"),/可能只是没有持仓/);
+});
+
+test("无有效结果时只显示教育解释，弹窗转义实际失败原因且清除旧内容", () => {
+  const {context,state}=harness();
+  const dialog=context.document.getElementById("term-dialog");dialog.showModal=()=>{dialog.open=true;};
+  state.result={metrics:{sharpe_ratio:null,sharpe_unavailable_reason:'<img src=x onerror="alert(1)">'}};
+  context.showTerm("sharpe");
+  const content=context.document.getElementById("term-guidance");
+  assert.ok(content.innerHTML.includes("&lt;img"));assert.ok(!content.innerHTML.includes("<img"));
+  context.drawChart=()=>{};context.invalidate();assert.equal(context.currentTermReading("sharpe"),"");
+  context.showTerm("pool");assert.equal(content.innerHTML,"");
+  context.showTerm("sharpe");assert.ok(!content.innerHTML.includes("本次结果怎么看"));
+});
+
+test("短样本年化与缺失年化值保留具体原因", () => {
+  const {context,state}=harness();
+  state.result={metrics:{annualized_return:0.8,annualized_volatility:0.2,return_periods:9},assumptions:{periods_per_year:252}};
+  assert.match(context.currentTermReading("annualreturn"),/仅有9个收益周期/);
+  assert.match(context.currentTermReading("volatility"),/不代表未来涨跌范围或最大损失/);
+  state.result.metrics.annualized_return=null;state.result.metrics.annualized_return_unavailable_reason="没有相邻净值收益区间";
+  assert.match(context.currentTermReading("annualreturn"),/不可用：没有相邻净值收益区间/);
+});
+
+test("个人AI配置更新生成入口，密钥不进入工作台快照或本机存储", () => {
+  const {context,state,storage}=harness();
+  state.bootstrap.ai_providers=[{id:"openai",label:"OpenAI"}];
+  context.document.getElementById("ai-api-key").value="TEST_DOUBLE_PRIVATE_KEY";
+  context.applyAIProfile({source:"personal",provider:"openai",model:"test-model",configured:true});
+  assert.equal(context.document.getElementById("generate-btn").disabled,false);
+  assert.equal(context.document.getElementById("factor-generate-btn").disabled,false);
+  assert.equal(context.document.getElementById("factor-explain-btn").disabled,true);
+  assert.ok(!JSON.stringify(context.workspaceFile()).includes("TEST_DOUBLE_PRIVATE_KEY"));
+  assert.equal(storage.size,0);
+  context.clearAIInput();assert.equal(context.document.getElementById("ai-api-key").value,"");
+});
+
+test("账号切换期间返回的旧AI配置不覆盖新账号", async () => {
+  const {context,state}=harness();state.bootstrap.user={id:"old-owner"};
+  const pending=deferred();context.api=()=>pending.promise;
+  const task=context.refreshAISettings();
+  vm.runInContext("identityRevision++",context);state.bootstrap.user={id:"new-owner"};
+  pending.resolve({profile:{source:"personal",provider:"old-provider",configured:true},providers:[],remember_supported:true});
+  await task;assert.equal(state.bootstrap.ai_profile,undefined);
+});
+
+test("游客配置刷新期间登录不会被旧默认配置覆盖", async () => {
+  const {context,state}=harness();state.bootstrap.user=null;
+  const pending=deferred();context.api=()=>pending.promise;
+  const task=context.refreshAISettings();
+  vm.runInContext("identityRevision++",context);state.bootstrap.user={id:"new-owner"};
+  pending.resolve({ai_profile:{provider:"old-default",configured:true}});
+  await task;assert.equal(state.bootstrap.ai_profile,undefined);
+});
+
+test("保存个人AI后丢弃旧候选并清空密钥输入", async () => {
+  const {context,state}=harness();state.bootstrap.ai_providers=[];
+  state.bootstrap.ai_remember_supported=true;state.candidate={status:"ok"};state.generationId="old-generation";
+  context.document.getElementById("ai-api-key").value="TEST_DOUBLE_PRIVATE_KEY";
+  context.api=async()=>({profile:{source:"personal",provider:"openai",model:"test-model",configured:true}});
+  await context.submitAISettings("save");
+  assert.equal(state.candidate,null);assert.equal(state.generationId,null);
+  assert.equal(context.document.getElementById("ai-api-key").value,"");
+  assert.equal(state.bootstrap.ai_configured,true);
+});
 
 test("公开数据源同时进入回测与因子协议，旧配置仍使用原始数据", () => {
   const {context}=harness();

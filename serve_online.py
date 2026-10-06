@@ -15,10 +15,13 @@ def prepare_workspace(source, destination):
         raise ValueError("网页版持久化目录须独立于源码根目录")
     for relative in ("data/demo_manifest.json", "data/csi300_manifest.json", "data/fundamental_capabilities.json",
                      "data/data_upload_spec.json", "docs/audit_evidence/data_statistics.json",
-                     "docs/audit_evidence/workspace_inventory.json", "examples/ma_strategy.json"):
+                     "docs/audit_evidence/workspace_inventory.json", "examples/ma_strategy.json",
+                     "examples/sample_case.json"):
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source / relative, target)
+    # 同步随源码分发的许可案例；账号及用户CSV仍留在各自持久化目录。
+    shutil.copytree(source / "data/sample", destination / "data/sample", dirs_exist_ok=True)
     for path in (source / "web").iterdir():
         if path.is_file():
             target = destination / "web" / path.name

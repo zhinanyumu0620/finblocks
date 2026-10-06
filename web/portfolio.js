@@ -7,7 +7,7 @@ function portfolioCodes(){return $("portfolio-symbols").value.split(/[,，\s]+/)
 function portfolioOptions(){return {max_positions:Number($("portfolio-max").value),position_cap:Number($("portfolio-cap").value)/100,rebalance_every:Number($("portfolio-every").value)};}
 function validPortfolioSettings(settings){
   const codes=settings.symbols,p=settings.portfolio;
-  if(!Array.isArray(codes)||!codes.length||codes.length>300||new Set(codes).size!==codes.length||codes.some(code=>!state.bootstrap.symbols.some(s=>s.code===code)))throw new Error("组合须选择1–300个已审计且不重复的股票代码");
+  if(!Array.isArray(codes)||!codes.length||codes.length>300||new Set(codes).size!==codes.length||codes.some(code=>!availableSymbols(settings.data_source||"original").some(s=>s.code===code)))throw new Error("组合须选择1–300个已审计且不重复的股票代码");
   if(!settings.start||!settings.end)throw new Error("组合回测须明确开始与结束日期");
   if(!p||Object.keys(p).sort().join(",")!=="max_positions,position_cap,rebalance_every"||!Number.isInteger(p.max_positions)||p.max_positions<1||p.max_positions>300||!Number.isInteger(p.rebalance_every)||p.rebalance_every<1||p.rebalance_every>60||!Number.isFinite(p.position_cap)||p.position_cap<=0||p.position_cap>1)throw new Error("最大持股数、单股上限或调仓间隔无效");
 }
@@ -23,7 +23,7 @@ function updatePortfolioMode(){
   portfolioLabels(enabled);
   $("experiment-btn").disabled=enabled;$("portfolio-experiment-note").hidden=!enabled;
   $("allocation-mode-note").textContent=enabled?"组合模式：条件为真持仓比例是整个账户的股票总预算，按入选股票等权且受单股上限约束；否则比例必须为0。调仓日不再入选即退出，穿越条件只在发生当日为真。":"单股模式：比例是当前一只股票的目标持仓。";
-  if(enabled)$("pool-info").textContent="选择明确股票集合后逐日扫描条件，共享一份现金。当前沪深300名单回看历史，不是历史逐日成分池。";
+  if(enabled)$("pool-info").textContent=isCSVSource($("data-source").value)?"逐股扫描所选CSV集合，共享一份现金；不是沪深300指数。":"选择明确股票集合后逐日扫描条件，共享一份现金。当前沪深300名单回看历史，不是历史逐日成分池。";
 }
 async function checkPortfolio(){
   if(portfolioState.busy||!isPortfolio())return;
@@ -63,7 +63,7 @@ function installPortfolio(){
   for(const [id,term] of [["data-source","data_source"],["backtest-mode","portfolio"],["portfolio-cap","position_cap"],["portfolio-every","rebalance_every"]])document.querySelector(`[for="${id}"]`)?.insertAdjacentHTML("beforeend",termHelp(term));
   $("backtest-mode").addEventListener("change",()=>{updatePortfolioMode();invalidate();validateCurrent();});
   for(const id of ["portfolio-symbols","portfolio-max","portfolio-cap","portfolio-every"])for(const event of ["input","change"])$(id).addEventListener(event,()=>{invalidate();validateCurrent();});
-  $("portfolio-all-btn").addEventListener("click",()=>{$("portfolio-symbols").value=state.bootstrap.symbols.filter(s=>(s.pool||"demo")===$("stock-pool").value).map(s=>s.code).join(", ");invalidate();validateCurrent();notice("已明确选择当前股票池全部标的，请检查区间数据；不会自动剔除失败股票。");});
+  $("portfolio-all-btn").addEventListener("click",()=>{$("portfolio-symbols").value=availableSymbols().filter(s=>(s.pool||"demo")===$("stock-pool").value).map(s=>s.code).join(", ");invalidate();validateCurrent();notice("已明确选择当前股票池全部标的，请检查区间数据；不会自动剔除失败股票。");});
   $("portfolio-check-btn").addEventListener("click",checkPortfolio);
   $("portfolio-use-eligible").addEventListener("click",async()=>{const checked=portfolioState.check;if(!checked)return;$("portfolio-symbols").value=checked.eligible_symbols.join(", ");invalidate();notice(`已按你的操作明确将集合改为 ${checked.eligible_symbols.length} 股，排除 ${checked.requested-checked.eligible_symbols.length} 股；正在重新检查。`);await checkPortfolio();});
   $("portfolio-example-btn").addEventListener("click",async()=>{try{await applyWorkspace({format:"finblocks-workspace",version:1,strategy:clone(state.bootstrap.default_strategy),config:{symbol:"sh688981",start:"2026-06-01",end:"2026-08-19",cost_bps:10,lag:1,periods_per_year:252,annual_risk_free_rate:0,mode:"portfolio",symbols:["sh688047","sh688506","sh688521","sh688981"],portfolio:{max_positions:4,position_cap:0.25,rebalance_every:1}}});notice("已载入人工MA5/20四股示例，替换策略与配置；参数为演示假设，未按收益择优。请检查股票池数据后运行。");}catch(error){notice(error.message,true);}});
